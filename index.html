@@ -1,0 +1,4003 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Параметрический 3D CAD</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+:root {
+  --bg-dark: #1e1e1e;
+  --bg-panel: #252525;
+  --bg-ribbon: #2d2d2d;
+  --accent: #0078d4;
+  --accent-hover: #106ebe;
+  --text: #cccccc;
+  --text-dim: #888888;
+  --border: #404040;
+  --border-light: #555555;
+  --success: #4caf50;
+  --warning: #ff9800;
+  --danger: #f44336;
+  --selected-bg: #094771;
+  --input-bg: #3c3c3c;
+  --button-bg: #3d3d3d;
+  --button-hover: #4d4d4d;
+  --button-active: #0078d4;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg-dark);
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ========== RIBBON ========== */
+#ribbon {
+  flex-shrink: 0;
+  height: 90px;
+  background: var(--bg-ribbon);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  user-select: none;
+  z-index: 100;
+}
+
+#ribbon-tabs {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--border);
+  background: #262626;
+}
+
+.ribbon-tab {
+  padding: 4px 14px;
+  cursor: pointer;
+  color: var(--text-dim);
+  font-size: 12px;
+  border-radius: 4px 4px 0 0;
+  border: 1px solid transparent;
+  border-bottom: none;
+  transition: all 0.15s;
+  margin-right: 2px;
+  position: relative;
+  bottom: -1px;
+}
+
+.ribbon-tab:hover {
+  color: var(--text);
+  background: var(--bg-ribbon);
+}
+
+.ribbon-tab.active {
+  color: var(--text);
+  background: var(--bg-ribbon);
+  border-color: var(--border);
+  border-bottom: 1px solid var(--bg-ribbon);
+}
+
+#ribbon-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.ribbon-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 8px;
+  border-right: 1px solid var(--border);
+  gap: 3px;
+  min-height: 52px;
+  justify-content: center;
+}
+
+.ribbon-group:last-child {
+  border-right: none;
+}
+
+.ribbon-group-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-top: 2px;
+  text-align: center;
+}
+
+.ribbon-group-buttons {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.tab-content {
+  display: none;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+}
+
+.tab-content.active {
+  display: flex;
+}
+
+.btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  background: var(--button-bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 11px;
+  min-width: 44px;
+  min-height: 36px;
+  gap: 2px;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.btn:hover {
+  background: var(--button-hover);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.btn:active, .btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.btn-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.btn-sm {
+  min-height: 24px;
+  min-width: 32px;
+  padding: 3px 6px;
+  font-size: 11px;
+}
+
+.btn-large {
+  min-height: 48px;
+  min-width: 52px;
+  font-size: 11px;
+}
+
+select.ribbon-select {
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  outline: none;
+}
+
+select.ribbon-select:hover {
+  border-color: var(--accent);
+}
+
+input[type="color"].ribbon-color {
+  width: 32px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px;
+  background: var(--input-bg);
+  cursor: pointer;
+}
+
+/* ========== WORKSPACE ========== */
+#workspace {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ========== TREE PANEL ========== */
+#tree-panel {
+  width: 220px;
+  flex-shrink: 0;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.panel-header {
+  padding: 8px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border);
+  background: #2a2a2a;
+  flex-shrink: 0;
+}
+
+#tree-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+#tree-list::-webkit-scrollbar { width: 6px; }
+#tree-list::-webkit-scrollbar-track { background: transparent; }
+#tree-list::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+
+.tree-item {
+  display: flex;
+  align-items: center;
+  padding: 5px 8px;
+  cursor: pointer;
+  gap: 5px;
+  border-radius: 3px;
+  margin: 1px 4px;
+  transition: background 0.1s;
+  position: relative;
+}
+
+.tree-item:hover {
+  background: #333;
+}
+
+.tree-item.selected {
+  background: var(--selected-bg);
+}
+
+.tree-item-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+.tree-item-name {
+  flex: 1;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-item-badge {
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: #444;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.tree-item-actions {
+  display: none;
+  gap: 3px;
+}
+
+.tree-item:hover .tree-item-actions {
+  display: flex;
+}
+
+.tree-action-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 1px 3px;
+  font-size: 12px;
+  border-radius: 2px;
+  line-height: 1;
+}
+
+.tree-action-btn:hover {
+  background: #555;
+  color: var(--text);
+}
+
+.tree-empty {
+  padding: 20px 10px;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-style: italic;
+}
+
+/* ========== VIEWPORT ========== */
+#viewport-container {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: #1a1a1a;
+}
+
+#main-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+#axes-canvas {
+  position: absolute;
+  bottom: 30px;
+  right: 10px;
+  width: 100px;
+  height: 100px;
+  pointer-events: none;
+  opacity: 0.9;
+}
+
+#viewport-overlay {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.view-btn {
+  background: rgba(45,45,45,0.85);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 4px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s;
+  backdrop-filter: blur(4px);
+}
+
+.view-btn:hover {
+  background: rgba(0,120,212,0.7);
+  border-color: var(--accent);
+}
+
+#sketch-indicator {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(0,120,212,0.85);
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  display: none;
+  backdrop-filter: blur(4px);
+  border: 1px solid #0086f0;
+}
+
+#sketch-indicator.active {
+  display: block;
+}
+
+#transform-indicator {
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(45,45,45,0.9);
+  color: var(--text);
+  padding: 4px 16px;
+  border-radius: 20px;
+  font-size: 11px;
+  display: none;
+  backdrop-filter: blur(4px);
+  border: 1px solid var(--border);
+}
+
+#transform-indicator.active {
+  display: block;
+}
+
+/* ========== PROPERTIES PANEL ========== */
+#props-panel {
+  width: 260px;
+  flex-shrink: 0;
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#props-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+#props-content::-webkit-scrollbar { width: 6px; }
+#props-content::-webkit-scrollbar-track { background: transparent; }
+#props-content::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+
+.props-section {
+  margin-bottom: 12px;
+}
+
+.props-section-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.props-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 5px;
+}
+
+.props-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  width: 28px;
+  flex-shrink: 0;
+}
+
+.props-label-wide {
+  width: 60px;
+}
+
+.props-input {
+  flex: 1;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  outline: none;
+  font-family: inherit;
+}
+
+.props-input:focus {
+  border-color: var(--accent);
+}
+
+.props-input:hover {
+  border-color: var(--border-light);
+}
+
+.props-select {
+  flex: 1;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  outline: none;
+  cursor: pointer;
+}
+
+.props-select:focus {
+  border-color: var(--accent);
+}
+
+.props-color {
+  width: 32px;
+  height: 22px;
+  padding: 1px;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.props-slider {
+  flex: 1;
+  appearance: none;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.props-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+}
+
+.props-empty {
+  text-align: center;
+  color: var(--text-dim);
+  padding: 30px 10px;
+  font-size: 12px;
+  font-style: italic;
+}
+
+.props-name-input {
+  width: 100%;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  outline: none;
+  font-family: inherit;
+  margin-bottom: 4px;
+}
+
+.props-name-input:focus {
+  border-color: var(--accent);
+}
+
+.props-type-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #444;
+  border-radius: 3px;
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+
+/* ========== STATUS BAR ========== */
+#status-bar {
+  flex-shrink: 0;
+  height: 24px;
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 16px;
+  font-size: 11px;
+  color: #fff;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.status-separator {
+  width: 1px;
+  height: 14px;
+  background: rgba(255,255,255,0.3);
+}
+
+#status-message {
+  flex: 1;
+  text-align: right;
+  opacity: 0.85;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ========== MODAL ========== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(2px);
+}
+
+.modal {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  min-width: 300px;
+  max-width: 400px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+
+.modal-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: var(--text);
+}
+
+.modal-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.modal-label {
+  font-size: 12px;
+  color: var(--text-dim);
+  width: 140px;
+  flex-shrink: 0;
+}
+
+.modal-input {
+  flex: 1;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  outline: none;
+  font-family: inherit;
+}
+
+.modal-input:focus {
+  border-color: var(--accent);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.modal-btn {
+  padding: 6px 16px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+
+.modal-btn-primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.modal-btn-primary:hover {
+  background: var(--accent-hover);
+}
+
+.modal-btn-secondary {
+  background: var(--button-bg);
+  color: var(--text);
+}
+
+.modal-btn-secondary:hover {
+  background: var(--button-hover);
+}
+
+/* ========== TOOLTIP ========== */
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #111;
+  color: var(--text);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  white-space: nowrap;
+  z-index: 999;
+  pointer-events: none;
+  margin-bottom: 4px;
+  border: 1px solid var(--border);
+}
+
+/* ========== SCROLLBAR ========== */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #666; }
+
+/* ========== MISC ========== */
+.flex-row { display: flex; align-items: center; gap: 6px; }
+.flex-col { display: flex; flex-direction: column; gap: 4px; }
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.checkbox-row input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+input[type="number"].props-input::-webkit-inner-spin-button,
+input[type="number"].props-input::-webkit-outer-spin-button {
+  opacity: 0.5;
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- RIBBON -->
+  <div id="ribbon">
+    <div id="ribbon-tabs">
+      <div class="ribbon-tab active" data-tab="file">Файл</div>
+      <div class="ribbon-tab" data-tab="primitives">Примитивы</div>
+      <div class="ribbon-tab" data-tab="sketch">Эскиз</div>
+      <div class="ribbon-tab" data-tab="operations">Операции</div>
+      <div class="ribbon-tab" data-tab="materials">Материалы</div>
+      <div class="ribbon-tab" data-tab="view">Вид</div>
+      <div class="ribbon-tab" data-tab="help">Справка</div>
+    </div>
+    <div id="ribbon-content">
+      <!-- File tab -->
+      <div class="tab-content active" id="tab-file">
+        <div class="ribbon-group">
+          <div class="ribbon-group-buttons">
+            <button class="btn btn-large" id="btn-new" data-tooltip="Новая сцена (Ctrl+N)">
+              <span class="btn-icon">📄</span>Новый
+            </button>
+            <button class="btn btn-large" id="btn-open" data-tooltip="Открыть файл (Ctrl+O)">
+              <span class="btn-icon">📂</span>Открыть
+            </button>
+            <button class="btn btn-large" id="btn-save" data-tooltip="Сохранить (Ctrl+S)">
+              <span class="btn-icon">💾</span>Сохранить
+            </button>
+          </div>
+          <div class="ribbon-group-label">Файл</div>
+        </div>
+        <div class="ribbon-group">
+          <div class="ribbon-group-buttons">
+            <button class="btn btn-large" id="btn-export-stl" data-tooltip="Экспорт в формат STL">
+              <span class="btn-icon">📤</span>STL
+            </button>
+            <button class="btn btn-large" id="btn-export-obj" data-tooltip="Экспорт в формат OBJ">
+              <span class="btn-icon">📤</span>OBJ
+            </button>
+            <button class="btn btn-large" id="btn-export-html" data-tooltip="Экспорт сцены как HTML">
+              <span class="btn-icon">🌐</span>HTML
+            </button>
+            <button class="btn btn-large" id="btn-screenshot" data-tooltip="Снимок экрана PNG">
+              <span class="btn-icon">📷</span>Снимок
+            </button>
+          </div>
+          <div class="ribbon-group-label">Экспорт</div>
+        </div>
+        <div class="ribbon-group">
+          <div class="ribbon-group-buttons">
+            <button class="btn btn-large" id="btn-undo" data-tooltip="Отменить (Ctrl+Z)">
+              <span class="btn-icon">↩️</span>Отмена
+            </button>
+            <button class="btn btn-large" id="btn-redo" data-tooltip="Повторить (Ctrl+Y)">
+              <span class="btn-icon">↪️</span>Повтор
+            </button>
+          </div>
+          <div class="ribbon-group-label">История</div>
+        </div>
+      </div>
+
+      <!-- Primitives tab -->
+      <div class="tab-content" id="tab-primitives">
+        <div class="ribbon-group">
+          <div class="ribbon-group-buttons">
+            <button class="btn btn-large" id="btn-add-box" data-tooltip="Добавить куб">
+              <span class="btn-icon">🟦</span>Куб
+            </button>
+            <button class="btn btn-large" id="btn-add-sphere" data-tooltip="Добавить сферу">
+              <span class="btn-icon">🔵</span>Сфера
+            </button>
+            <button class="btn btn-large" id="btn-add-cylinder" data-tooltip="Добавить цилиндр">
+              <span class="btn-icon">🔷</span>Цилиндр
+            </button>
+            <button class="btn btn-large" id="btn-add-cone" data-tooltip="Добавить конус">
+              <span class="btn-icon">🔺</span>Конус
+            </button>
+          </div>
+          <div class="ribbon-group-label">Тела</div>
+        </div>
+        <div class="ribbon-group">
+          <div class="ribbon-group-buttons">
+            <button class="btn btn-large" id="btn-add-torus" data-tooltip="Добавить тор">
+              <span class="btn-icon">⭕</span>Тор
+            </button>
+            <button class="btn btn-large" id="btn-add-plane" data-tooltip="Добавить плоскость">
+              <span class="btn-icon">▬</span>Плоскость
+            </button>
+            <button class="btn btn-large" id="btn-add-capsule" data-tooltip="Добавить капсулу">
+              <span class="btn-icon">💊</span>Капсула
+            </button>
+            <button class="btn btn-large" id="btn-add-tube" data-tooltip="Добавить трубу">
+              <span class="btn-icon">〇</span>Труба
+            </button>
+            <button class="btn btn-large" id="btn-add-hemisphere" data-tooltip="Добавить полусферу">
+              <span class="btn-icon">◑</span>Полусфера
+            </button>
+            <button class="btn btn-large" id="btn-add-pyramid" data-tooltip="Добавить пирамиду">
+              <span class="btn-icon">△</span>Пирамида
+            </button>
+          </div>
+          <div class="ribbon-group-label">Поверхности</div>
+        </div>
+      </div>
+
+      <!-- Sketch tab -->
+      <div class="tab-content" id="tab-sketch">
+        <div class="ribbon-group">
+          <div class="ribbon-group-buttons">
+            <select class="ribbon-select" id="sketch-plane-select">
+              <option value="XY">Плоскость XY</option>
+              <option value="XZ">Плоскость XZ</option>
+              <option value="YZ">Плоскость YZ</option>
+            </select>
+            <button class="btn btn-large" id="btn-start-sketch" data-tooltip="Начать эскиз">
+              <span class="btn-icon">✏️</span>Начать
+            </button>
+            <button class="btn btn-large" id="btn-finish-sketch" data-tooltip="Завершить эскиз" disabled>
+              <span class="btn-icon">✅</span>Завершить
+            </button>
+          </div>
+          <div class="ribbon-group-label">Эскиз</div>
+        </div>
+        <div class="ribbon-group">
+          <div class="ribbon-group-buttons">
+            <button class="btn btn-large" id="btn-sketch-line" data-tooltip="Линия" disabled>
+              <span class="btn-icon">📏</span>Линия
+            </button>
+            <button class="btn btn-large" id="btn-sketch-rect" data-tooltip="Прямоугольник" disabled>
+              <span class="btn-icon">▭</span>Прямоуголь.
+            </button>
+            <button class="btn btn-large" id="btn-sketch-circle" data-tooltip="Окружность" disabled>
+              <span class="btn-icon">○</span>Окружность
+            </button>
+          </div>
+          <div class="ribbon-group-label">Инструменты</div>
+        </div>
+      </div>
+
+      <!-- Operations tab -->
+      <div class="tab-content" id="tab-operations">
+        <div class="ribbon-group">
+          <div class="ribbon-group-buttons">
+            <button class="btn btn-large" id="btn-extrude" data-tooltip="Выдавить эскиз">
+              <span class="btn-icon">⬆️</span>Выдавить
+            </button>
+            <button class="btn btn-large" id="btn-revolve" data-tooltip="Вращать эскиз">
+              <span class="btn-icon">🔄</span>Вращать
+            </button>
+          </div>
+          <div class="ribbon-group-label">Эскиз→Тело</div>
+        </div>
+        <div class="ribbon-group">
+          <div class="ribbon-group-buttons">
+            <button class="btn btn-large" id="btn-bool-union" data-tooltip="Булево объединение двух выбранных объектов">
+              <span class="btn-icon">➕</span>Объединить
+            </button>
+            <button class="btn btn-large" id="btn-bool-subtract" data-tooltip="Булево вычитание (A - B)">
+              <span class="btn-icon">➖</span>Вычесть
+            </button>
+            <button class="btn btn-large" id="btn-bool-intersect" data-tooltip="Пересечение объектов">
+              <span class="btn-icon">✖️</span>Пересечь
+            </button>
+          </div>
+          <div class="ribbon-group-label">Булевы</div>
+        </div>
+        <div class="ribbon-group">
+          <div class="ribbon-group-buttons">
+            <button class="btn btn-large" id="btn-delete-sel" data-tooltip="Удалить выбранное (Del)">
+              <span class="btn-icon">🗑️</span>Удалить
+            </button>
+            <button class="btn btn-large" id="btn-duplicate" data-tooltip="Дублировать (Ctrl+D)">
+              <span class="btn-icon">⧉</span>Копия
+            </button>
+            <button class="btn btn-large" id="btn-hide-sel" data-tooltip="Скрыть выбранное (H)">
+              <span class="btn-icon">👁</span>Скрыть
+            </button>
+          </div>
+          <div class="ribbon-group-label">Правка</div>
+        </div>
+        <div class="ribbon-group">
+          <div class="ribbon-group-buttons">
+            <button class="btn btn-large" id="btn-mirror-x" data-tooltip="Зеркало по X">
+              <span class="btn-icon">⇔</span>Зеркало X
+            </button>
+            <button class="btn btn-large" id="btn-mirror-y" data-tooltip="Зеркало по Y">
+              <span class="btn-icon">⇕</span>Зеркало Y
+            </button>
+            <button class="btn btn-large" id="btn-mirror-z" data-tooltip="Зеркало по Z">
+              <span class="btn-icon">⇔</span>Зеркало Z
+            </button>
+          </div>
+          <div class="ribbon-group-label">Зеркало</div>
+        </div>
+        <div class="ribbon-group">
+          <div class="ribbon-group-buttons">
+            <button class="btn btn-large" id="btn-array-linear" data-tooltip="Линейный массив">
+              <span class="btn-icon">≡</span>Линейный
+            </button>
+            <button class="btn btn-large" id="btn-array-polar" data-tooltip="Полярный массив">
+              <span class="btn-icon">◎</span>Полярный
+            </button>
+            <button class="btn btn-large" id="btn-array-grid" data-tooltip="Сеточный массив">
+              <span class="btn-icon">⊞</span>Сетка
+            </button>
+          </div>
+          <div class="ribbon-group-label">Массив</div>
+        </div>
+      </div>
+
+      <!-- Materials tab -->
+      <div class="tab-content" id="tab-materials">
+        <div class="ribbon-group">
+          <div class="ribbon-group-buttons flex-col">
+            <select class="ribbon-select" id="material-preset-select" style="width:130px">
+              <option value="Белый пластик">Белый пластик</option>
+              <option value="Сталь">Сталь</option>
+              <option value="Золото">Золото</option>
+              <option value="Стекло">Стекло</option>
+              <option value="Дерево">Дерево</option>
+              <option value="Резина">Резина</option>
+              <option value="Эмиссионный">Эмиссионный</option>
+            </select>
+            <div class="flex-row">
+              <input type="color" class="ribbon-color" id="material-color-picker" value="#5588cc" data-tooltip="Цвет">
+              <button class="btn btn-sm" id="btn-apply-material" data-tooltip="Применить материал">Применить</button>
+            </div>
+          </div>
+          <div class="ribbon-group-label">Предустановки</div>
+        </div>
+        <div class="ribbon-group">
+          <div class="ribbon-group-buttons flex-col">
+            <div class="flex-row">
+              <span style="font-size:11px;color:var(--text-dim);width:80px">Шероховатость:</span>
+              <input type="range" class="props-slider" id="mat-roughness" min="0" max="1" step="0.01" value="0.5" style="width:80px">
+              <span id="mat-roughness-val" style="font-size:11px;width:24px">0.5</span>
+            </div>
+            <div class="flex-row">
+              <span style="font-size:11px;color:var(--text-dim);width:80px">Металличность:</span>
+              <input type="range" class="props-slider" id="mat-metalness" min="0" max="1" step="0.01" value="0.1" style="width:80px">
+              <span id="mat-metalness-val" style="font-size:11px;width:24px">0.1</span>
+            </div>
+          </div>
+          <div class="ribbon-group-label">Параметры</div>
+        </div>
+      </div>
+
+      <!-- View tab -->
+      <div class="tab-content" id="tab-view">
+        <div class="ribbon-group">
+          <div class="ribbon-group-buttons">
+            <button class="btn btn-large active" id="btn-toggle-grid" data-tooltip="Показать/скрыть сетку">
+              <span class="btn-icon">⊞</span>Сетка
+            </button>
+            <button class="btn btn-large active" id="btn-toggle-axes" data-tooltip="Показать/скрыть оси">
+              <span class="btn-icon">⟂</span>Оси
+            </button>
+            <button class="btn btn-large" id="btn-toggle-wireframe" data-tooltip="Каркасный режим">
+              <span class="btn-icon">⬡</span>Каркас
+            </button>
+            <button class="btn btn-large active" id="btn-toggle-shadows" data-tooltip="Тени">
+              <span class="btn-icon">🌑</span>Тени
+            </button>
+          </div>
+          <div class="ribbon-group-label">Отображение</div>
+        </div>
+        <div class="ribbon-group">
+          <div class="ribbon-group-buttons">
+            <button class="btn btn-large" id="btn-view-front" data-tooltip="Вид спереди">
+              <span class="btn-icon">⬛</span>Спереди
+            </button>
+            <button class="btn btn-large" id="btn-view-top" data-tooltip="Вид сверху">
+              <span class="btn-icon">⬛</span>Сверху
+            </button>
+            <button class="btn btn-large" id="btn-view-right" data-tooltip="Вид справа">
+              <span class="btn-icon">⬛</span>Справа
+            </button>
+            <button class="btn btn-large" id="btn-view-iso" data-tooltip="Изометрия">
+              <span class="btn-icon">🔷</span>Изо
+            </button>
+          </div>
+          <div class="ribbon-group-label">Камера</div>
+        </div>
+        <div class="ribbon-group">
+          <div class="ribbon-group-buttons">
+            <button class="btn btn-large" id="btn-frame-all" data-tooltip="Показать всё (Home)">
+              <span class="btn-icon">🔍</span>Показать всё
+            </button>
+            <button class="btn btn-large" id="btn-frame-sel" data-tooltip="Показать выбранное (F)">
+              <span class="btn-icon">🎯</span>Фокус
+            </button>
+          </div>
+          <div class="ribbon-group-label">Навигация</div>
+        </div>
+      </div>
+
+      <!-- Help tab -->
+      <div class="tab-content" id="tab-help">
+        <div class="ribbon-group">
+          <div style="padding: 4px 8px; font-size: 11px; color: var(--text-dim); line-height: 1.6; max-width: 600px;">
+            <strong style="color:var(--text)">Горячие клавиши:</strong>
+            Ctrl+Z / Ctrl+Y – Отмена/Повтор &nbsp;|&nbsp;
+            Del – Удалить &nbsp;|&nbsp;
+            G – Перемещение &nbsp;|&nbsp;
+            R – Поворот &nbsp;|&nbsp;
+            S – Масштаб &nbsp;|&nbsp;
+            F – Фокус &nbsp;|&nbsp;
+            Esc – Отмена выбора &nbsp;|&nbsp;
+            Ctrl+A – Выбрать всё
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WORKSPACE -->
+  <div id="workspace">
+    <!-- MODEL TREE -->
+    <div id="tree-panel">
+      <div class="panel-header">🗂 Дерево модели</div>
+      <div id="tree-list">
+        <div class="tree-empty">Сцена пуста.<br>Добавьте объект.</div>
+      </div>
+    </div>
+
+    <!-- 3D VIEWPORT -->
+    <div id="viewport-container">
+      <canvas id="main-canvas"></canvas>
+      <canvas id="axes-canvas"></canvas>
+      <div id="viewport-overlay">
+        <button class="view-btn" id="vbtn-top">Сверху</button>
+        <button class="view-btn" id="vbtn-front">Спереди</button>
+        <button class="view-btn" id="vbtn-right">Справа</button>
+        <button class="view-btn" id="vbtn-iso">Изо</button>
+      </div>
+      <div id="sketch-indicator">✏️ Режим эскиза</div>
+      <div id="transform-indicator">G - Перемещение | R - Поворот | S - Масштаб</div>
+    </div>
+
+    <!-- PROPERTIES PANEL -->
+    <div id="props-panel">
+      <div class="panel-header">⚙ Свойства</div>
+      <div id="props-content">
+        <div class="props-empty" id="props-empty">Ничего не выбрано</div>
+        <div id="props-fields" style="display:none">
+          <!-- Name -->
+          <div class="props-section">
+            <div class="props-section-title">Объект</div>
+            <input type="text" class="props-name-input" id="prop-name" placeholder="Имя объекта">
+            <div id="prop-type-badge" class="props-type-badge">—</div>
+          </div>
+
+          <!-- Transform -->
+          <div class="props-section">
+            <div class="props-section-title">Позиция</div>
+            <div class="props-row">
+              <span class="props-label">X</span>
+              <input type="number" class="props-input" id="prop-px" step="0.1" value="0">
+              <span class="props-label">Y</span>
+              <input type="number" class="props-input" id="prop-py" step="0.1" value="0">
+              <span class="props-label">Z</span>
+              <input type="number" class="props-input" id="prop-pz" step="0.1" value="0">
+            </div>
+          </div>
+          <div class="props-section">
+            <div class="props-section-title">Поворот (°)</div>
+            <div class="props-row">
+              <span class="props-label">X</span>
+              <input type="number" class="props-input" id="prop-rx" step="1" value="0">
+              <span class="props-label">Y</span>
+              <input type="number" class="props-input" id="prop-ry" step="1" value="0">
+              <span class="props-label">Z</span>
+              <input type="number" class="props-input" id="prop-rz" step="1" value="0">
+            </div>
+          </div>
+          <div class="props-section">
+            <div class="props-section-title">Масштаб</div>
+            <div class="props-row">
+              <span class="props-label">X</span>
+              <input type="number" class="props-input" id="prop-sx" step="0.1" value="1" min="0.001">
+              <span class="props-label">Y</span>
+              <input type="number" class="props-input" id="prop-sy" step="0.1" value="1" min="0.001">
+              <span class="props-label">Z</span>
+              <input type="number" class="props-input" id="prop-sz" step="0.1" value="1" min="0.001">
+            </div>
+          </div>
+
+          <!-- Material -->
+          <div class="props-section">
+            <div class="props-section-title">Материал</div>
+            <div class="props-row">
+              <span class="props-label props-label-wide">Предустановка</span>
+              <select class="props-select" id="prop-mat-preset">
+                <option value="">Пользовательский</option>
+                <option value="Белый пластик">Белый пластик</option>
+                <option value="Сталь">Сталь</option>
+                <option value="Золото">Золото</option>
+                <option value="Стекло">Стекло</option>
+                <option value="Дерево">Дерево</option>
+                <option value="Резина">Резина</option>
+                <option value="Эмиссионный">Эмиссионный</option>
+              </select>
+            </div>
+            <div class="props-row">
+              <span class="props-label props-label-wide">Цвет</span>
+              <input type="color" class="props-color" id="prop-color" value="#5588cc">
+            </div>
+            <div class="props-row">
+              <span class="props-label props-label-wide">Шерох.</span>
+              <input type="range" class="props-slider" id="prop-roughness" min="0" max="1" step="0.01" value="0.5">
+              <span id="prop-roughness-val" style="font-size:11px;min-width:24px">0.5</span>
+            </div>
+            <div class="props-row">
+              <span class="props-label props-label-wide">Металл.</span>
+              <input type="range" class="props-slider" id="prop-metalness" min="0" max="1" step="0.01" value="0.1">
+              <span id="prop-metalness-val" style="font-size:11px;min-width:24px">0.1</span>
+            </div>
+            <div class="props-row">
+              <label class="checkbox-row">
+                <input type="checkbox" id="prop-transparent">
+                <span>Прозрачность</span>
+              </label>
+              <input type="range" class="props-slider" id="prop-opacity" min="0.01" max="1" step="0.01" value="1">
+              <span id="prop-opacity-val" style="font-size:11px;min-width:24px">1.0</span>
+            </div>
+          </div>
+
+          <!-- Visibility/Lock -->
+          <div class="props-section">
+            <div class="props-section-title">Видимость</div>
+            <div class="props-row">
+              <label class="checkbox-row">
+                <input type="checkbox" id="prop-visible" checked>
+                <span>Видимый</span>
+              </label>
+            </div>
+            <div class="props-row">
+              <label class="checkbox-row">
+                <input type="checkbox" id="prop-locked">
+                <span>Заблокировать</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATUS BAR -->
+  <div id="status-bar">
+    <div class="status-item" id="status-mode">Режим: Просмотр</div>
+    <div class="status-separator"></div>
+    <div class="status-item" id="status-selected">Выбрано: 0</div>
+    <div class="status-separator"></div>
+    <div class="status-item" id="status-coords">X: 0.00  Y: 0.00  Z: 0.00</div>
+    <div class="status-separator"></div>
+    <div class="status-item" id="status-objects">Объектов: 0</div>
+    <div id="status-message"></div>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { TransformControls } from 'three/addons/controls/TransformControls.js';
+import { STLExporter } from 'three/addons/exporters/STLExporter.js';
+import { OBJExporter } from 'three/addons/exporters/OBJExporter.js';
+import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
+
+// ============================================================
+// SCENE MANAGER
+// ============================================================
+class SceneManager {
+  constructor() {
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color(0x1a1a1a);
+    this.objects = new Map();
+    this.nextId = 1;
+    this.gridVisible = true;
+    this.axesVisible = true;
+    this._setupLights();
+    this._setupGrid();
+  }
+
+  _setupLights() {
+    this.ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+    this.scene.add(this.ambientLight);
+
+    this.dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    this.dirLight.position.set(10, 20, 10);
+    this.dirLight.castShadow = true;
+    this.dirLight.shadow.mapSize.width = 2048;
+    this.dirLight.shadow.mapSize.height = 2048;
+    this.dirLight.shadow.camera.near = 0.5;
+    this.dirLight.shadow.camera.far = 200;
+    this.dirLight.shadow.camera.left = -30;
+    this.dirLight.shadow.camera.right = 30;
+    this.dirLight.shadow.camera.top = 30;
+    this.dirLight.shadow.camera.bottom = -30;
+    this.dirLight.shadow.bias = -0.001;
+    this.scene.add(this.dirLight);
+
+    this.hemiLight = new THREE.HemisphereLight(0x87ceeb, 0x444444, 0.3);
+    this.scene.add(this.hemiLight);
+
+    const fillLight = new THREE.DirectionalLight(0xffffff, 0.2);
+    fillLight.position.set(-10, 5, -10);
+    this.scene.add(fillLight);
+  }
+
+  _setupGrid() {
+    this.gridFine = new THREE.GridHelper(200, 200, 0x444444, 0x444444);
+    this.gridFine.material.opacity = 0.5;
+    this.gridFine.material.transparent = true;
+    this.scene.add(this.gridFine);
+
+    this.gridCoarse = new THREE.GridHelper(200, 20, 0x666666, 0x666666);
+    this.gridCoarse.material.opacity = 0.8;
+    this.gridCoarse.material.transparent = true;
+    this.scene.add(this.gridCoarse);
+
+    this.axesHelper = new THREE.AxesHelper(5);
+    this.scene.add(this.axesHelper);
+  }
+
+  setGridVisible(v) {
+    this.gridVisible = v;
+    this.gridFine.visible = v;
+    this.gridCoarse.visible = v;
+  }
+
+  setAxesVisible(v) {
+    this.axesVisible = v;
+    this.axesHelper.visible = v;
+  }
+
+  addObject(sceneObj) {
+    this.objects.set(sceneObj.id, sceneObj);
+    if (sceneObj.mesh) {
+      this.scene.add(sceneObj.mesh);
+    }
+  }
+
+  removeObject(id) {
+    const obj = this.objects.get(id);
+    if (obj) {
+      if (obj.mesh) {
+        this.scene.remove(obj.mesh);
+        if (obj.mesh.geometry) obj.mesh.geometry.dispose();
+        if (obj.mesh.material) {
+          if (Array.isArray(obj.mesh.material)) {
+            obj.mesh.material.forEach(m => m.dispose());
+          } else {
+            obj.mesh.material.dispose();
+          }
+        }
+      }
+      this.objects.delete(id);
+    }
+  }
+
+  getObject(id) {
+    return this.objects.get(id);
+  }
+
+  getAllObjects() {
+    return Array.from(this.objects.values());
+  }
+
+  clear() {
+    const ids = Array.from(this.objects.keys());
+    ids.forEach(id => this.removeObject(id));
+    this.nextId = 1;
+  }
+
+  serialize() {
+    const data = { objects: [], nextId: this.nextId };
+    this.objects.forEach(obj => {
+      const mesh = obj.mesh;
+      const entry = {
+        id: obj.id,
+        name: obj.name,
+        type: obj.type,
+        kind: obj.kind,
+        params: obj.params,
+        materialParams: obj.materialParams,
+        visible: obj.visible,
+        locked: obj.locked,
+        position: mesh ? { x: mesh.position.x, y: mesh.position.y, z: mesh.position.z } : { x:0,y:0,z:0 },
+        rotation: mesh ? { x: mesh.rotation.x, y: mesh.rotation.y, z: mesh.rotation.z } : { x:0,y:0,z:0 },
+        scale: mesh ? { x: mesh.scale.x, y: mesh.scale.y, z: mesh.scale.z } : { x:1,y:1,z:1 }
+      };
+      data.objects.push(entry);
+    });
+    return data;
+  }
+
+  deserialize(data) {
+    this.clear();
+    this.nextId = data.nextId || 1;
+    if (data.objects) {
+      data.objects.forEach(entry => {
+        let mesh = null;
+        if (entry.kind === 'primitive' && entry.params) {
+          mesh = PrimitiveFactory.create(entry.type, entry.params);
+        }
+        if (mesh) {
+          mesh.position.set(entry.position.x, entry.position.y, entry.position.z);
+          mesh.rotation.set(entry.rotation.x, entry.rotation.y, entry.rotation.z);
+          mesh.scale.set(entry.scale.x, entry.scale.y, entry.scale.z);
+          if (entry.materialParams) {
+            MaterialLibrary.applyParams(mesh, entry.materialParams);
+          }
+          mesh.visible = entry.visible !== false;
+        }
+        const sceneObj = {
+          id: entry.id,
+          name: entry.name,
+          type: entry.type,
+          kind: entry.kind,
+          mesh,
+          params: entry.params,
+          materialParams: entry.materialParams,
+          visible: entry.visible !== false,
+          locked: entry.locked || false,
+          children: [],
+          parent: null
+        };
+        this.addObject(sceneObj);
+      });
+    }
+  }
+}
+
+// ============================================================
+// CAMERA CONTROLLER
+// ============================================================
+class CameraController {
+  constructor(camera, renderer) {
+    this.camera = camera;
+    this.controls = new OrbitControls(camera, renderer.domElement);
+    this.controls.enableDamping = true;
+    this.controls.dampingFactor = 0.05;
+    this.controls.screenSpacePanning = false;
+    this.controls.minDistance = 0.5;
+    this.controls.maxDistance = 2000;
+    this.controls.target.set(0, 0, 0);
+  }
+
+  setView(preset) {
+    const target = this.controls.target.clone();
+    const dist = this.camera.position.distanceTo(target) || 30;
+    switch(preset) {
+      case 'front':
+        this.camera.position.set(target.x, target.y, target.z + dist);
+        break;
+      case 'top':
+        this.camera.position.set(target.x, target.y + dist, target.z + 0.001);
+        break;
+      case 'right':
+        this.camera.position.set(target.x + dist, target.y, target.z);
+        break;
+      case 'iso':
+      default:
+        const d = dist / Math.sqrt(3);
+        this.camera.position.set(target.x + d*1.2, target.y + d, target.z + d*1.2);
+        break;
+    }
+    this.camera.lookAt(target);
+    this.controls.update();
+  }
+
+  update() {
+    this.controls.update();
+  }
+
+  frameAll(objects) {
+    if (!objects || objects.length === 0) {
+      this.setView('iso');
+      return;
+    }
+    const box = new THREE.Box3();
+    objects.forEach(obj => {
+      if (obj.mesh && obj.mesh.visible) {
+        box.expandByObject(obj.mesh);
+      }
+    });
+    this._frameBox(box);
+  }
+
+  frameSelected(objects) {
+    if (!objects || objects.length === 0) { this.frameAll([]); return; }
+    const box = new THREE.Box3();
+    objects.forEach(obj => {
+      if (obj.mesh) box.expandByObject(obj.mesh);
+    });
+    this._frameBox(box);
+  }
+
+  _frameBox(box) {
+    if (box.isEmpty()) { this.setView('iso'); return; }
+    const center = new THREE.Vector3();
+    const size = new THREE.Vector3();
+    box.getCenter(center);
+    box.getSize(size);
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const fov = this.camera.fov * (Math.PI / 180);
+    let dist = maxDim / (2 * Math.tan(fov / 2));
+    dist = Math.max(dist * 1.5, 5);
+    const dir = this.camera.position.clone().sub(this.controls.target).normalize();
+    if (dir.lengthSq() < 0.001) dir.set(1, 0.6, 1).normalize();
+    this.camera.position.copy(center).addScaledVector(dir, dist);
+    this.controls.target.copy(center);
+    this.controls.update();
+  }
+}
+
+// ============================================================
+// PRIMITIVE FACTORY
+// ============================================================
+class PrimitiveFactory {
+  static create(type, params = {}) {
+    let geometry;
+    switch(type) {
+      case 'box':
+        geometry = new THREE.BoxGeometry(
+          params.width || 2,
+          params.height || 2,
+          params.depth || 2
+        );
+        break;
+      case 'sphere':
+        geometry = new THREE.SphereGeometry(
+          params.radius || 1.5,
+          params.widthSegments || 32,
+          params.heightSegments || 32
+        );
+        break;
+      case 'cylinder':
+        geometry = new THREE.CylinderGeometry(
+          params.radiusTop !== undefined ? params.radiusTop : 1,
+          params.radiusBottom !== undefined ? params.radiusBottom : 1,
+          params.height || 3,
+          params.segments || 32
+        );
+        break;
+      case 'cone':
+        geometry = new THREE.ConeGeometry(
+          params.radius || 1.5,
+          params.height || 3,
+          params.segments || 32
+        );
+        break;
+      case 'torus':
+        geometry = new THREE.TorusGeometry(
+          params.radius || 2,
+          params.tube || 0.5,
+          params.radialSegments || 16,
+          params.tubularSegments || 100
+        );
+        break;
+      case 'plane':
+        geometry = new THREE.PlaneGeometry(
+          params.width || 4,
+          params.height || 4
+        );
+        break;
+      case 'capsule':
+        geometry = new THREE.CapsuleGeometry(
+          params.radius || 1,
+          params.length || 2,
+          params.capSegments || 8,
+          params.radialSegments || 16
+        );
+        break;
+      case 'tube': {
+        const tubePath = new THREE.QuadraticBezierCurve3(
+          new THREE.Vector3(-2, 0, 0),
+          new THREE.Vector3(0, 2, 0),
+          new THREE.Vector3(2, 0, 0)
+        );
+        geometry = new THREE.TubeGeometry(tubePath, params.tubularSegments || 20, params.radius || 0.3, params.radialSegments || 12, params.closed || false);
+        break;
+      }
+      case 'hemisphere': {
+        geometry = new THREE.SphereGeometry(params.radius || 1.5, params.widthSegments || 32, params.heightSegments || 16, 0, Math.PI * 2, 0, Math.PI / 2);
+        break;
+      }
+      case 'pyramid': {
+        geometry = new THREE.ConeGeometry(params.radius || 1.5, params.height || 3, params.segments || 4);
+        break;
+      }
+      default:
+        geometry = new THREE.BoxGeometry(2, 2, 2);
+    }
+
+    const material = new THREE.MeshStandardMaterial({
+      color: 0x5588cc,
+      roughness: 0.5,
+      metalness: 0.1
+    });
+
+    const mesh = new THREE.Mesh(geometry, material);
+
+    if (type === 'plane') {
+      mesh.rotation.x = -Math.PI / 2;
+    }
+
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+
+    return mesh;
+  }
+
+  static getDefaultParams(type) {
+    const defaults = {
+      box: { width: 2, height: 2, depth: 2 },
+      sphere: { radius: 1.5, widthSegments: 32, heightSegments: 32 },
+      cylinder: { radiusTop: 1, radiusBottom: 1, height: 3, segments: 32 },
+      cone: { radius: 1.5, height: 3, segments: 32 },
+      torus: { radius: 2, tube: 0.5, radialSegments: 16, tubularSegments: 100 },
+      plane: { width: 4, height: 4 },
+      capsule: { radius: 1, length: 2, capSegments: 8, radialSegments: 16 },
+      tube: { radius: 0.3, tubularSegments: 20, radialSegments: 12 },
+      hemisphere: { radius: 1.5, widthSegments: 32, heightSegments: 16 },
+      pyramid: { radius: 1.5, height: 3, segments: 4 }
+    };
+    return defaults[type] || {};
+  }
+
+  static getTypeName(type) {
+    const names = {
+      box: 'Куб', sphere: 'Сфера', cylinder: 'Цилиндр',
+      cone: 'Конус', torus: 'Тор', plane: 'Плоскость', capsule: 'Капсула',
+      tube: 'Труба', hemisphere: 'Полусфера', pyramid: 'Пирамида'
+    };
+    return names[type] || type;
+  }
+}
+
+// ============================================================
+// MATERIAL LIBRARY
+// ============================================================
+class MaterialLibrary {
+  static get presets() {
+    return {
+      'Белый пластик': { color: 0xeeeeee, roughness: 0.7, metalness: 0.0 },
+      'Сталь': { color: 0x8899aa, roughness: 0.3, metalness: 0.8 },
+      'Золото': { color: 0xffd700, roughness: 0.2, metalness: 1.0 },
+      'Стекло': { color: 0x88ccff, roughness: 0.0, metalness: 0.0, transparent: true, opacity: 0.3 },
+      'Дерево': { color: 0x8B6914, roughness: 0.9, metalness: 0.0 },
+      'Резина': { color: 0x222222, roughness: 1.0, metalness: 0.0 },
+      'Эмиссионный': { color: 0x00ff88, roughness: 0.5, metalness: 0.0, emissive: 0x00ff88, emissiveIntensity: 0.5 }
+    };
+  }
+
+  static create(presetName) {
+    const p = this.presets[presetName];
+    if (!p) return new THREE.MeshStandardMaterial({ color: 0x5588cc });
+    if (presetName === 'Стекло') {
+      return new THREE.MeshPhysicalMaterial({
+        color: p.color,
+        roughness: p.roughness,
+        metalness: p.metalness,
+        transparent: true,
+        opacity: p.opacity,
+        transmission: 0.9,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+    }
+    const mat = new THREE.MeshStandardMaterial({ color: p.color, roughness: p.roughness, metalness: p.metalness });
+    if (p.transparent) { mat.transparent = true; mat.opacity = p.opacity || 0.5; }
+    if (p.emissive !== undefined) { mat.emissive = new THREE.Color(p.emissive); mat.emissiveIntensity = p.emissiveIntensity || 0.5; }
+    return mat;
+  }
+
+  static apply(mesh, presetName) {
+    if (!mesh) return;
+    const newMat = this.create(presetName);
+    if (mesh.material) {
+      if (Array.isArray(mesh.material)) mesh.material.forEach(m => m.dispose());
+      else mesh.material.dispose();
+    }
+    mesh.material = newMat;
+    return newMat;
+  }
+
+  static applyParams(mesh, params) {
+    if (!mesh || !params) return;
+    const mat = new THREE.MeshStandardMaterial();
+    if (params.color !== undefined) mat.color.setHex(typeof params.color === 'number' ? params.color : parseInt(params.color));
+    if (params.roughness !== undefined) mat.roughness = params.roughness;
+    if (params.metalness !== undefined) mat.metalness = params.metalness;
+    if (params.transparent !== undefined) { mat.transparent = params.transparent; mat.opacity = params.opacity || 1; }
+    if (params.emissive !== undefined) { mat.emissive = new THREE.Color(params.emissive); mat.emissiveIntensity = params.emissiveIntensity || 0; }
+    if (mesh.material) {
+      if (Array.isArray(mesh.material)) mesh.material.forEach(m => m.dispose());
+      else mesh.material.dispose();
+    }
+    mesh.material = mat;
+    return mat;
+  }
+
+  static getParams(mesh) {
+    if (!mesh || !mesh.material) return { color: 0x5588cc, roughness: 0.5, metalness: 0.1 };
+    const m = mesh.material;
+    return {
+      color: m.color ? m.color.getHex() : 0x5588cc,
+      roughness: m.roughness !== undefined ? m.roughness : 0.5,
+      metalness: m.metalness !== undefined ? m.metalness : 0.1,
+      transparent: m.transparent || false,
+      opacity: m.opacity !== undefined ? m.opacity : 1,
+      emissive: m.emissive ? m.emissive.getHex() : 0,
+      emissiveIntensity: m.emissiveIntensity || 0
+    };
+  }
+}
+
+// ============================================================
+// SELECTION MANAGER
+// ============================================================
+class SelectionManager {
+  constructor(sceneManager) {
+    this.sceneManager = sceneManager;
+    this.selected = [];
+    this.raycaster = new THREE.Raycaster();
+    this._originalEmissives = new Map();
+  }
+
+  _getSelectableMeshes() {
+    return this.sceneManager.getAllObjects()
+      .filter(o => o.mesh && o.mesh.visible && !o.locked)
+      .map(o => o.mesh);
+  }
+
+  _findObjByMesh(mesh) {
+    return this.sceneManager.getAllObjects().find(o => o.mesh === mesh);
+  }
+
+  pick(event, camera, canvas, shiftKey) {
+    const rect = canvas.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    this.raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
+    const meshes = this._getSelectableMeshes();
+    const intersects = this.raycaster.intersectObjects(meshes, false);
+
+    if (intersects.length === 0) {
+      if (!shiftKey) this.clearSelection();
+      return null;
+    }
+
+    const hit = intersects[0].object;
+    const obj = this._findObjByMesh(hit);
+    if (!obj) return null;
+
+    if (shiftKey) {
+      if (this.isSelected(obj.id)) {
+        this.deselect(obj.id);
+      } else {
+        this.select(obj.id);
+      }
+    } else {
+      this.clearSelection();
+      this.select(obj.id);
+    }
+    return obj.id;
+  }
+
+  select(id) {
+    if (!this.isSelected(id)) {
+      this.selected.push(id);
+      this._highlight(id, true);
+    }
+  }
+
+  deselect(id) {
+    this._highlight(id, false);
+    this.selected = this.selected.filter(i => i !== id);
+  }
+
+  clearSelection() {
+    [...this.selected].forEach(id => this._highlight(id, false));
+    this.selected = [];
+  }
+
+  getSelected() {
+    return this.selected.slice();
+  }
+
+  isSelected(id) {
+    return this.selected.includes(id);
+  }
+
+  _highlight(id, on) {
+    const obj = this.sceneManager.getObject(id);
+    if (!obj || !obj.mesh) return;
+    const mat = obj.mesh.material;
+    if (!mat) return;
+    if (on) {
+      if (!this._originalEmissives.has(id)) {
+        const origEmissive = mat.emissive ? mat.emissive.clone() : new THREE.Color(0);
+        const origIntensity = mat.emissiveIntensity || 0;
+        this._originalEmissives.set(id, { emissive: origEmissive, intensity: origIntensity });
+      }
+      mat.emissive = new THREE.Color(0xffff00);
+      mat.emissiveIntensity = 0.3;
+    } else {
+      const orig = this._originalEmissives.get(id);
+      if (orig) {
+        mat.emissive = orig.emissive;
+        mat.emissiveIntensity = orig.intensity;
+        this._originalEmissives.delete(id);
+      } else {
+        mat.emissive = new THREE.Color(0);
+        mat.emissiveIntensity = 0;
+      }
+    }
+  }
+}
+
+// ============================================================
+// TRANSFORM TOOL
+// ============================================================
+class TransformTool {
+  constructor(camera, renderer, orbitControls) {
+    this.controls = new TransformControls(camera, renderer.domElement);
+    this.controls.setSize(0.8);
+    this._mode = 'translate';
+    this.controls.addEventListener('dragging-changed', (e) => {
+      orbitControls.enabled = !e.value;
+    });
+  }
+
+  attach(mesh) {
+    if (mesh) this.controls.attach(mesh);
+  }
+
+  detach() {
+    this.controls.detach();
+  }
+
+  setMode(mode) {
+    this._mode = mode;
+    this.controls.setMode(mode);
+  }
+
+  getMode() { return this._mode; }
+
+  addToScene(scene) {
+    scene.add(this.controls);
+  }
+}
+
+// ============================================================
+// HISTORY MANAGER
+// ============================================================
+class HistoryManager {
+  constructor() {
+    this.states = [];
+    this.cursor = -1;
+    this.maxDepth = 50;
+  }
+
+  push(snapshot) {
+    if (this.cursor < this.states.length - 1) {
+      this.states = this.states.slice(0, this.cursor + 1);
+    }
+    this.states.push(JSON.stringify(snapshot));
+    if (this.states.length > this.maxDepth) {
+      this.states.shift();
+    }
+    this.cursor = this.states.length - 1;
+  }
+
+  undo() {
+    if (!this.canUndo()) return null;
+    this.cursor--;
+    return JSON.parse(this.states[this.cursor]);
+  }
+
+  redo() {
+    if (!this.canRedo()) return null;
+    this.cursor++;
+    return JSON.parse(this.states[this.cursor]);
+  }
+
+  canUndo() { return this.cursor > 0; }
+  canRedo() { return this.cursor < this.states.length - 1; }
+  clear() { this.states = []; this.cursor = -1; }
+}
+
+// ============================================================
+// OPERATION TREE
+// ============================================================
+class OperationTree {
+  constructor() {
+    this.operations = [];
+  }
+
+  add(op) {
+    this.operations.push({ ...op, timestamp: Date.now() });
+  }
+
+  getOperations() { return this.operations; }
+
+  removeOperation(index) {
+    this.operations.splice(index, 1);
+  }
+
+  clear() {
+    this.operations = [];
+  }
+}
+
+// ============================================================
+// SKETCH MANAGER
+// ============================================================
+class SketchManager {
+  constructor(scene) {
+    this.scene = scene;
+    this.active = false;
+    this.planeType = 'XY';
+    this.segments = [];
+    this.planeMesh = null;
+    this._previewLine = null;
+    this._sketchGroup = new THREE.Group();
+    scene.add(this._sketchGroup);
+    this._firstPoint = null;
+    this.currentTool = 'line';
+    this._snapGrid = 0.5;
+  }
+
+  startSketch(planeType) {
+    this.active = true;
+    this.planeType = planeType;
+    this.segments = [];
+    this._firstPoint = null;
+
+    if (this.planeMesh) {
+      this.scene.remove(this.planeMesh);
+      this.planeMesh.geometry.dispose();
+      this.planeMesh.material.dispose();
+    }
+
+    const geo = new THREE.PlaneGeometry(100, 100);
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x0078d4,
+      transparent: true,
+      opacity: 0.06,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
+    this.planeMesh = new THREE.Mesh(geo, mat);
+
+    if (planeType === 'XY') {
+      // no rotation needed
+    } else if (planeType === 'XZ') {
+      this.planeMesh.rotation.x = Math.PI / 2;
+    } else if (planeType === 'YZ') {
+      this.planeMesh.rotation.y = Math.PI / 2;
+    }
+
+    this.scene.add(this.planeMesh);
+
+    const gridHelper = new THREE.GridHelper(20, 40, 0x0078d4, 0x0078d4);
+    gridHelper.material.opacity = 0.3;
+    gridHelper.material.transparent = true;
+    if (planeType === 'XY') gridHelper.rotation.x = Math.PI / 2;
+    else if (planeType === 'YZ') gridHelper.rotation.z = Math.PI / 2;
+    this._sketchGroup.add(gridHelper);
+    this._gridHelper = gridHelper;
+  }
+
+  setTool(tool) {
+    this.currentTool = tool;
+    this._firstPoint = null;
+    this._removePreview();
+  }
+
+  snap(point) {
+    const s = this._snapGrid;
+    return new THREE.Vector3(
+      Math.round(point.x / s) * s,
+      Math.round(point.y / s) * s,
+      Math.round(point.z / s) * s
+    );
+  }
+
+  getPlaneIntersection(event, camera, canvas) {
+    const rect = canvas.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
+
+    let planeNormal, planePoint;
+    if (this.planeType === 'XY') {
+      planeNormal = new THREE.Vector3(0, 0, 1);
+      planePoint = new THREE.Vector3(0, 0, 0);
+    } else if (this.planeType === 'XZ') {
+      planeNormal = new THREE.Vector3(0, 1, 0);
+      planePoint = new THREE.Vector3(0, 0, 0);
+    } else {
+      planeNormal = new THREE.Vector3(1, 0, 0);
+      planePoint = new THREE.Vector3(0, 0, 0);
+    }
+
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, planePoint);
+    const point = new THREE.Vector3();
+    raycaster.ray.intersectPlane(plane, point);
+    return point ? this.snap(point) : null;
+  }
+
+  onClick(event, camera, canvas) {
+    const point = this.getPlaneIntersection(event, camera, canvas);
+    if (!point) return;
+
+    if (!this._firstPoint) {
+      this._firstPoint = point.clone();
+    } else {
+      const p1 = this._firstPoint.clone();
+      const p2 = point.clone();
+      this._addSegmentVisual(p1, p2);
+      if (this.currentTool === 'line') {
+        this.segments.push({ type: 'line', p1, p2 });
+        this._firstPoint = p2.clone();
+      } else if (this.currentTool === 'rect') {
+        const corners = this._rectCorners(p1, p2);
+        for (let i = 0; i < 4; i++) {
+          this.segments.push({ type: 'line', p1: corners[i], p2: corners[(i+1)%4] });
+          this._addSegmentVisual(corners[i], corners[(i+1)%4]);
+        }
+        this._removePreview();
+        this._firstPoint = null;
+      } else if (this.currentTool === 'circle') {
+        const radius = p1.distanceTo(p2);
+        const segs = 32;
+        for (let i = 0; i < segs; i++) {
+          const a1 = (i / segs) * Math.PI * 2;
+          const a2 = ((i+1) / segs) * Math.PI * 2;
+          let pt1 = new THREE.Vector3(), pt2 = new THREE.Vector3();
+          if (this.planeType === 'XY') {
+            pt1.set(p1.x + Math.cos(a1)*radius, p1.y + Math.sin(a1)*radius, 0);
+            pt2.set(p1.x + Math.cos(a2)*radius, p1.y + Math.sin(a2)*radius, 0);
+          } else if (this.planeType === 'XZ') {
+            pt1.set(p1.x + Math.cos(a1)*radius, 0, p1.z + Math.sin(a1)*radius);
+            pt2.set(p1.x + Math.cos(a2)*radius, 0, p1.z + Math.sin(a2)*radius);
+          } else {
+            pt1.set(0, p1.y + Math.cos(a1)*radius, p1.z + Math.sin(a1)*radius);
+            pt2.set(0, p1.y + Math.cos(a2)*radius, p1.z + Math.sin(a2)*radius);
+          }
+          this.segments.push({ type: 'line', p1: pt1, p2: pt2 });
+          this._addSegmentVisual(pt1, pt2);
+        }
+        this._removePreview();
+        this._firstPoint = null;
+      }
+    }
+  }
+
+  _rectCorners(p1, p2) {
+    if (this.planeType === 'XY') {
+      return [
+        new THREE.Vector3(p1.x, p1.y, 0),
+        new THREE.Vector3(p2.x, p1.y, 0),
+        new THREE.Vector3(p2.x, p2.y, 0),
+        new THREE.Vector3(p1.x, p2.y, 0)
+      ];
+    } else if (this.planeType === 'XZ') {
+      return [
+        new THREE.Vector3(p1.x, 0, p1.z),
+        new THREE.Vector3(p2.x, 0, p1.z),
+        new THREE.Vector3(p2.x, 0, p2.z),
+        new THREE.Vector3(p1.x, 0, p2.z)
+      ];
+    } else {
+      return [
+        new THREE.Vector3(0, p1.y, p1.z),
+        new THREE.Vector3(0, p2.y, p1.z),
+        new THREE.Vector3(0, p2.y, p2.z),
+        new THREE.Vector3(0, p1.y, p2.z)
+      ];
+    }
+  }
+
+  onMouseMove(event, camera, canvas) {
+    if (!this._firstPoint) return;
+    const point = this.getPlaneIntersection(event, camera, canvas);
+    if (!point) return;
+    this._updatePreview(this._firstPoint, point);
+  }
+
+  _addSegmentVisual(p1, p2) {
+    const geo = new THREE.BufferGeometry().setFromPoints([p1, p2]);
+    const mat = new THREE.LineBasicMaterial({ color: 0x00aaff, linewidth: 2 });
+    const line = new THREE.Line(geo, mat);
+    this._sketchGroup.add(line);
+  }
+
+  _updatePreview(p1, p2) {
+    this._removePreview();
+    const geo = new THREE.BufferGeometry().setFromPoints([p1, p2]);
+    const mat = new THREE.LineBasicMaterial({ color: 0xffaa00, linewidth: 1.5 });
+    this._previewLine = new THREE.Line(geo, mat);
+    this._sketchGroup.add(this._previewLine);
+  }
+
+  _removePreview() {
+    if (this._previewLine) {
+      this._sketchGroup.remove(this._previewLine);
+      this._previewLine.geometry.dispose();
+      this._previewLine.material.dispose();
+      this._previewLine = null;
+    }
+  }
+
+  finishSketch() {
+    const data = { segments: this.segments.slice(), planeType: this.planeType };
+    this.cancelSketch();
+    return data;
+  }
+
+  cancelSketch() {
+    this.active = false;
+    this._firstPoint = null;
+    this._removePreview();
+    if (this.planeMesh) {
+      this.scene.remove(this.planeMesh);
+      this.planeMesh.geometry.dispose();
+      this.planeMesh.material.dispose();
+      this.planeMesh = null;
+    }
+    while (this._sketchGroup.children.length > 0) {
+      const child = this._sketchGroup.children[0];
+      this._sketchGroup.remove(child);
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) child.material.dispose();
+    }
+    this.segments = [];
+    this._gridHelper = null;
+  }
+}
+
+// ============================================================
+// EXTRUDE ENGINE
+// ============================================================
+class ExtrudeEngine {
+  static extrude(sketchData, depth = 2, bevelEnabled = false, bevelThickness = 0.1) {
+    if (!sketchData || !sketchData.segments || sketchData.segments.length === 0) return null;
+
+    const shape = ExtrudeEngine._buildShape(sketchData);
+    if (!shape) return null;
+
+    const extrudeSettings = {
+      depth,
+      bevelEnabled,
+      bevelThickness: bevelEnabled ? bevelThickness : 0,
+      bevelSize: bevelEnabled ? bevelThickness * 0.5 : 0,
+      bevelSegments: bevelEnabled ? 3 : 0
+    };
+
+    const geo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+    const mat = new THREE.MeshStandardMaterial({ color: 0x5588cc, roughness: 0.5, metalness: 0.1 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+
+    if (sketchData.planeType === 'XZ') {
+      mesh.rotation.x = -Math.PI / 2;
+    } else if (sketchData.planeType === 'YZ') {
+      mesh.rotation.y = Math.PI / 2;
+    }
+
+    return mesh;
+  }
+
+  static _buildShape(sketchData) {
+    const segments = sketchData.segments;
+    if (!segments || segments.length === 0) return null;
+
+    const shape = new THREE.Shape();
+    const planeType = sketchData.planeType || 'XY';
+
+    const toXY = (p) => {
+      if (planeType === 'XY') return [p.x, p.y];
+      if (planeType === 'XZ') return [p.x, p.z];
+      if (planeType === 'YZ') return [p.y, p.z];
+      return [p.x, p.y];
+    };
+
+    if (segments.length > 0) {
+      const [sx, sy] = toXY(segments[0].p1);
+      shape.moveTo(sx, sy);
+      segments.forEach(seg => {
+        const [ex, ey] = toXY(seg.p2);
+        shape.lineTo(ex, ey);
+      });
+      shape.closePath();
+    }
+
+    return shape;
+  }
+
+  static revolve(sketchData, angle = Math.PI * 2, segments = 32) {
+    if (!sketchData || !sketchData.segments || sketchData.segments.length === 0) return null;
+
+    const points = [];
+    const planeType = sketchData.planeType || 'XY';
+
+    sketchData.segments.forEach(seg => {
+      const p = seg.p1;
+      if (planeType === 'XY') points.push(new THREE.Vector2(Math.abs(p.x), p.y));
+      else if (planeType === 'XZ') points.push(new THREE.Vector2(Math.abs(p.x), p.z));
+      else points.push(new THREE.Vector2(Math.abs(p.y), p.z));
+    });
+
+    if (points.length === 0) return null;
+
+    const unique = [];
+    points.forEach(p => {
+      if (!unique.find(u => Math.abs(u.x - p.x) < 0.001 && Math.abs(u.y - p.y) < 0.001)) {
+        unique.push(p);
+      }
+    });
+
+    if (unique.length < 2) return null;
+
+    const geo = new THREE.LatheGeometry(unique, segments, 0, angle);
+    const mat = new THREE.MeshStandardMaterial({ color: 0x5588cc, roughness: 0.5, metalness: 0.1 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    return mesh;
+  }
+}
+
+// ============================================================
+// BOOLEAN ENGINE
+// ============================================================
+class BooleanEngine {
+  static union(meshA, meshB) {
+    const geoA = meshA.geometry.clone();
+    const geoB = meshB.geometry.clone();
+
+    geoA.applyMatrix4(meshA.matrixWorld);
+    geoB.applyMatrix4(meshB.matrixWorld);
+
+    const merged = BufferGeometryUtils.mergeGeometries([geoA, geoB], false);
+    if (!merged) return null;
+
+    const mat = meshA.material.clone();
+    const mesh = new THREE.Mesh(merged, mat);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    return mesh;
+  }
+
+  static subtract(meshA, meshB, statusCallback) {
+    if (statusCallback) {
+      statusCallback('CSG требует дополнительной библиотеки, выполнено объединение');
+    }
+    return BooleanEngine.union(meshA, meshB);
+  }
+
+  static intersect(meshA, meshB, statusCallback) {
+    if (statusCallback) {
+      statusCallback('CSG требует дополнительной библиотеки, выполнено объединение');
+    }
+    return BooleanEngine.union(meshA, meshB);
+  }
+}
+
+// ============================================================
+// EXPORT MANAGER
+// ============================================================
+class ExportManager {
+  constructor() {
+    this.stlExporter = new STLExporter();
+    this.objExporter = new OBJExporter();
+  }
+
+  exportSTL(scene, filename = 'model.stl') {
+    const str = this.stlExporter.parse(scene);
+    const blob = new Blob([str], { type: 'application/octet-stream' });
+    this._download(blob, filename);
+  }
+
+  exportOBJ(scene, filename = 'model.obj') {
+    const str = this.objExporter.parse(scene);
+    const blob = new Blob([str], { type: 'text/plain' });
+    this._download(blob, filename);
+  }
+
+  exportHTML(scene, camera, settings = {}) {
+    const sceneJSON = JSON.stringify(scene.toJSON());
+    const camPos = { x: camera.position.x, y: camera.position.y, z: camera.position.z };
+    const bg = settings.background || '#1a1a1a';
+    const autoRotate = settings.autoRotate ? 'true' : 'false';
+    const shadows = settings.shadows !== false ? 'true' : 'false';
+    const html = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D Scene</title>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}<\/script>
+<style>*{margin:0;padding:0}body{overflow:hidden;background:${bg}}canvas{display:block}</style>
+</head>
+<body>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+const sceneData = ${sceneJSON};
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(devicePixelRatio);
+renderer.shadowMap.enabled = ${shadows};
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+const loader = new THREE.ObjectLoader();
+const scene = loader.parse(sceneData);
+scene.background = new THREE.Color('${bg}');
+const ambLight = new THREE.AmbientLight(0xffffff, 0.4);
+scene.add(ambLight);
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+dirLight.position.set(10,20,10);
+dirLight.castShadow = ${shadows};
+scene.add(dirLight);
+scene.add(new THREE.HemisphereLight(0x87ceeb, 0x444, 0.3));
+const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 10000);
+camera.position.set(${camPos.x}, ${camPos.y}, ${camPos.z});
+camera.lookAt(0,0,0);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.autoRotate = ${autoRotate};
+window.addEventListener('resize', ()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+(function animate(){ requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); })();
+<\/script>
+</body>
+</html>`;
+    const blob = new Blob([html], { type: 'text/html' });
+    this._download(blob, 'scene.html');
+  }
+
+  screenshot(renderer, filename = 'screenshot.png', width, height) {
+    if (width && height) {
+      const origW = renderer.domElement.width;
+      const origH = renderer.domElement.height;
+      renderer.setSize(width, height);
+      renderer.render(renderer._scene, renderer._camera);
+      const url = renderer.domElement.toDataURL('image/png');
+      renderer.setSize(origW, origH);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+    } else {
+      const url = renderer.domElement.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+    }
+  }
+
+  _download(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  saveToLocalStorage(data) {
+    try {
+      localStorage.setItem('cad_autosave', JSON.stringify(data));
+      return true;
+    } catch(e) {
+      console.warn('Could not save to localStorage:', e);
+      return false;
+    }
+  }
+
+  loadFromLocalStorage() {
+    try {
+      const raw = localStorage.getItem('cad_autosave');
+      return raw ? JSON.parse(raw) : null;
+    } catch(e) {
+      return null;
+    }
+  }
+}
+
+// ============================================================
+// STATUS BAR
+// ============================================================
+class StatusBar {
+  constructor() {
+    this._mode = document.getElementById('status-mode');
+    this._selected = document.getElementById('status-selected');
+    this._coords = document.getElementById('status-coords');
+    this._objects = document.getElementById('status-objects');
+    this._message = document.getElementById('status-message');
+    this._msgTimer = null;
+  }
+
+  setMode(mode) { if (this._mode) this._mode.textContent = 'Режим: ' + mode; }
+  setSelected(count) { if (this._selected) this._selected.textContent = 'Выбрано: ' + count; }
+  setCoords(x, y, z) {
+    if (this._coords) {
+      this._coords.textContent = `X: ${x.toFixed(2)}  Y: ${y.toFixed(2)}  Z: ${z.toFixed(2)}`;
+    }
+  }
+  setObjectCount(n) { if (this._objects) this._objects.textContent = 'Объектов: ' + n; }
+  setMessage(msg, duration = 3000) {
+    if (this._message) this._message.textContent = msg;
+    if (this._msgTimer) clearTimeout(this._msgTimer);
+    if (duration > 0) {
+      this._msgTimer = setTimeout(() => {
+        if (this._message) this._message.textContent = '';
+      }, duration);
+    }
+  }
+}
+
+// ============================================================
+// MODEL TREE UI
+// ============================================================
+class ModelTreeUI {
+  constructor(app) {
+    this.app = app;
+    this.container = document.getElementById('tree-list');
+    this._selectedIds = [];
+  }
+
+  refresh(objects) {
+    if (!this.container) return;
+    if (objects.length === 0) {
+      this.container.innerHTML = '<div class="tree-empty">Сцена пуста.<br>Добавьте объект.</div>';
+      return;
+    }
+
+    this.container.innerHTML = '';
+    objects.forEach(obj => {
+      const item = document.createElement('div');
+      item.className = 'tree-item' + (this._selectedIds.includes(obj.id) ? ' selected' : '');
+      item.dataset.id = obj.id;
+
+      const icon = document.createElement('span');
+      icon.className = 'tree-item-icon';
+      icon.textContent = this._getIcon(obj.type);
+
+      const name = document.createElement('span');
+      name.className = 'tree-item-name';
+      name.textContent = obj.name || obj.type;
+      name.title = obj.name || obj.type;
+
+      const badge = document.createElement('span');
+      badge.className = 'tree-item-badge';
+      badge.textContent = PrimitiveFactory.getTypeName(obj.type);
+
+      const actions = document.createElement('div');
+      actions.className = 'tree-item-actions';
+
+      const visBtn = document.createElement('button');
+      visBtn.className = 'tree-action-btn';
+      visBtn.textContent = obj.visible !== false ? '👁' : '🚫';
+      visBtn.title = 'Видимость';
+      visBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.app.toggleObjectVisibility(obj.id);
+      });
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'tree-action-btn';
+      delBtn.textContent = '✕';
+      delBtn.title = 'Удалить';
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.app.deleteObject(obj.id);
+      });
+
+      actions.appendChild(visBtn);
+      actions.appendChild(delBtn);
+
+      item.appendChild(icon);
+      item.appendChild(name);
+      item.appendChild(badge);
+      item.appendChild(actions);
+
+      item.addEventListener('click', (e) => {
+        this.app.onObjectSelected(obj.id, e.shiftKey);
+      });
+
+      this.container.appendChild(item);
+    });
+  }
+
+  setSelected(ids) {
+    this._selectedIds = ids;
+    const items = this.container.querySelectorAll('.tree-item');
+    items.forEach(item => {
+      const id = parseInt(item.dataset.id);
+      item.classList.toggle('selected', ids.includes(id));
+    });
+  }
+
+  _getIcon(type) {
+    const icons = {
+      box: '🟦', sphere: '🔵', cylinder: '🔷', cone: '🔺',
+      torus: '⭕', plane: '▬', capsule: '💊',
+      extrude: '⬆️', revolve: '🔄', boolean: '🔮',
+      sketch: '✏️'
+    };
+    return icons[type] || '📦';
+  }
+}
+
+// ============================================================
+// PROPERTIES PANEL
+// ============================================================
+class PropertiesPanel {
+  constructor(app) {
+    this.app = app;
+    this._currentId = null;
+    this._updating = false;
+    this._setupListeners();
+  }
+
+  _setupListeners() {
+    const ids = ['prop-px','prop-py','prop-pz','prop-rx','prop-ry','prop-rz','prop-sx','prop-sy','prop-sz'];
+    ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('input', () => this._onTransformChange());
+    });
+
+    const nameEl = document.getElementById('prop-name');
+    if (nameEl) nameEl.addEventListener('input', () => {
+      if (this._currentId === null) return;
+      const obj = this.app.sceneManager.getObject(this._currentId);
+      if (obj) {
+        obj.name = nameEl.value;
+        this.app.modelTreeUI.refresh(this.app.sceneManager.getAllObjects());
+      }
+    });
+
+    const colorEl = document.getElementById('prop-color');
+    if (colorEl) colorEl.addEventListener('input', () => this._onMaterialChange());
+
+    const roughEl = document.getElementById('prop-roughness');
+    const roughVal = document.getElementById('prop-roughness-val');
+    if (roughEl) roughEl.addEventListener('input', () => {
+      if (roughVal) roughVal.textContent = parseFloat(roughEl.value).toFixed(2);
+      this._onMaterialChange();
+    });
+
+    const metEl = document.getElementById('prop-metalness');
+    const metVal = document.getElementById('prop-metalness-val');
+    if (metEl) metEl.addEventListener('input', () => {
+      if (metVal) metVal.textContent = parseFloat(metEl.value).toFixed(2);
+      this._onMaterialChange();
+    });
+
+    const transEl = document.getElementById('prop-transparent');
+    if (transEl) transEl.addEventListener('change', () => this._onMaterialChange());
+
+    const opacEl = document.getElementById('prop-opacity');
+    const opacVal = document.getElementById('prop-opacity-val');
+    if (opacEl) opacEl.addEventListener('input', () => {
+      if (opacVal) opacVal.textContent = parseFloat(opacEl.value).toFixed(2);
+      this._onMaterialChange();
+    });
+
+    const visEl = document.getElementById('prop-visible');
+    if (visEl) visEl.addEventListener('change', () => {
+      if (this._currentId === null) return;
+      const obj = this.app.sceneManager.getObject(this._currentId);
+      if (obj && obj.mesh) {
+        obj.visible = visEl.checked;
+        obj.mesh.visible = visEl.checked;
+        this.app.modelTreeUI.refresh(this.app.sceneManager.getAllObjects());
+      }
+    });
+
+    const lockEl = document.getElementById('prop-locked');
+    if (lockEl) lockEl.addEventListener('change', () => {
+      if (this._currentId === null) return;
+      const obj = this.app.sceneManager.getObject(this._currentId);
+      if (obj) obj.locked = lockEl.checked;
+    });
+
+    const matPresetEl = document.getElementById('prop-mat-preset');
+    if (matPresetEl) matPresetEl.addEventListener('change', () => {
+      const preset = matPresetEl.value;
+      if (!preset || this._currentId === null) return;
+      const obj = this.app.sceneManager.getObject(this._currentId);
+      if (obj && obj.mesh) {
+        MaterialLibrary.apply(obj.mesh, preset);
+        const params = MaterialLibrary.getParams(obj.mesh);
+        this._updating = true;
+        this._updateMaterialFields(params);
+        this._updating = false;
+      }
+    });
+
+    // Ribbon material controls
+    const ribRough = document.getElementById('mat-roughness');
+    const ribRoughVal = document.getElementById('mat-roughness-val');
+    if (ribRough) ribRough.addEventListener('input', () => {
+      if (ribRoughVal) ribRoughVal.textContent = parseFloat(ribRough.value).toFixed(2);
+    });
+    const ribMet = document.getElementById('mat-metalness');
+    const ribMetVal = document.getElementById('mat-metalness-val');
+    if (ribMet) ribMet.addEventListener('input', () => {
+      if (ribMetVal) ribMetVal.textContent = parseFloat(ribMet.value).toFixed(2);
+    });
+  }
+
+  _onTransformChange() {
+    if (this._updating || this._currentId === null) return;
+    const obj = this.app.sceneManager.getObject(this._currentId);
+    if (!obj || !obj.mesh) return;
+    const px = parseFloat(document.getElementById('prop-px').value) || 0;
+    const py = parseFloat(document.getElementById('prop-py').value) || 0;
+    const pz = parseFloat(document.getElementById('prop-pz').value) || 0;
+    const rx = (parseFloat(document.getElementById('prop-rx').value) || 0) * Math.PI / 180;
+    const ry = (parseFloat(document.getElementById('prop-ry').value) || 0) * Math.PI / 180;
+    const rz = (parseFloat(document.getElementById('prop-rz').value) || 0) * Math.PI / 180;
+    const sx = parseFloat(document.getElementById('prop-sx').value) || 1;
+    const sy = parseFloat(document.getElementById('prop-sy').value) || 1;
+    const sz = parseFloat(document.getElementById('prop-sz').value) || 1;
+    obj.mesh.position.set(px, py, pz);
+    obj.mesh.rotation.set(rx, ry, rz);
+    obj.mesh.scale.set(sx, sy, sz);
+  }
+
+  _onMaterialChange() {
+    if (this._updating || this._currentId === null) return;
+    const obj = this.app.sceneManager.getObject(this._currentId);
+    if (!obj || !obj.mesh || !obj.mesh.material) return;
+
+    const colorEl = document.getElementById('prop-color');
+    const roughEl = document.getElementById('prop-roughness');
+    const metEl = document.getElementById('prop-metalness');
+    const transEl = document.getElementById('prop-transparent');
+    const opacEl = document.getElementById('prop-opacity');
+
+    const mat = obj.mesh.material;
+    if (colorEl) mat.color.set(colorEl.value);
+    if (roughEl) mat.roughness = parseFloat(roughEl.value);
+    if (metEl) mat.metalness = parseFloat(metEl.value);
+    if (transEl) { mat.transparent = transEl.checked; mat.needsUpdate = true; }
+    if (opacEl) mat.opacity = parseFloat(opacEl.value);
+
+    const matParams = MaterialLibrary.getParams(obj.mesh);
+    obj.materialParams = matParams;
+  }
+
+  update(sceneObj) {
+    if (!sceneObj) { this.clear(); return; }
+    this._currentId = sceneObj.id;
+    this._updating = true;
+
+    document.getElementById('props-empty').style.display = 'none';
+    document.getElementById('props-fields').style.display = 'block';
+
+    const nameEl = document.getElementById('prop-name');
+    if (nameEl) nameEl.value = sceneObj.name || '';
+
+    const badgeEl = document.getElementById('prop-type-badge');
+    if (badgeEl) badgeEl.textContent = PrimitiveFactory.getTypeName(sceneObj.type);
+
+    const mesh = sceneObj.mesh;
+    if (mesh) {
+      document.getElementById('prop-px').value = mesh.position.x.toFixed(3);
+      document.getElementById('prop-py').value = mesh.position.y.toFixed(3);
+      document.getElementById('prop-pz').value = mesh.position.z.toFixed(3);
+      document.getElementById('prop-rx').value = (mesh.rotation.x * 180 / Math.PI).toFixed(2);
+      document.getElementById('prop-ry').value = (mesh.rotation.y * 180 / Math.PI).toFixed(2);
+      document.getElementById('prop-rz').value = (mesh.rotation.z * 180 / Math.PI).toFixed(2);
+      document.getElementById('prop-sx').value = mesh.scale.x.toFixed(3);
+      document.getElementById('prop-sy').value = mesh.scale.y.toFixed(3);
+      document.getElementById('prop-sz').value = mesh.scale.z.toFixed(3);
+
+      const params = MaterialLibrary.getParams(mesh);
+      this._updateMaterialFields(params);
+    }
+
+    const visEl = document.getElementById('prop-visible');
+    if (visEl) visEl.checked = sceneObj.visible !== false;
+    const lockEl = document.getElementById('prop-locked');
+    if (lockEl) lockEl.checked = sceneObj.locked || false;
+
+    this._updating = false;
+  }
+
+  _updateMaterialFields(params) {
+    const colorEl = document.getElementById('prop-color');
+    if (colorEl) colorEl.value = '#' + params.color.toString(16).padStart(6, '0');
+    const roughEl = document.getElementById('prop-roughness');
+    if (roughEl) roughEl.value = params.roughness;
+    const roughVal = document.getElementById('prop-roughness-val');
+    if (roughVal) roughVal.textContent = params.roughness.toFixed(2);
+    const metEl = document.getElementById('prop-metalness');
+    if (metEl) metEl.value = params.metalness;
+    const metVal = document.getElementById('prop-metalness-val');
+    if (metVal) metVal.textContent = params.metalness.toFixed(2);
+    const transEl = document.getElementById('prop-transparent');
+    if (transEl) transEl.checked = params.transparent;
+    const opacEl = document.getElementById('prop-opacity');
+    if (opacEl) opacEl.value = params.opacity;
+    const opacVal = document.getElementById('prop-opacity-val');
+    if (opacVal) opacVal.textContent = params.opacity.toFixed(2);
+  }
+
+  clear() {
+    this._currentId = null;
+    document.getElementById('props-empty').style.display = 'block';
+    document.getElementById('props-fields').style.display = 'none';
+  }
+
+  syncFromMesh() {
+    if (this._currentId === null) return;
+    const obj = this.app.sceneManager.getObject(this._currentId);
+    if (!obj || !obj.mesh) return;
+    this._updating = true;
+    const mesh = obj.mesh;
+    document.getElementById('prop-px').value = mesh.position.x.toFixed(3);
+    document.getElementById('prop-py').value = mesh.position.y.toFixed(3);
+    document.getElementById('prop-pz').value = mesh.position.z.toFixed(3);
+    document.getElementById('prop-rx').value = (mesh.rotation.x * 180 / Math.PI).toFixed(2);
+    document.getElementById('prop-ry').value = (mesh.rotation.y * 180 / Math.PI).toFixed(2);
+    document.getElementById('prop-rz').value = (mesh.rotation.z * 180 / Math.PI).toFixed(2);
+    document.getElementById('prop-sx').value = mesh.scale.x.toFixed(3);
+    document.getElementById('prop-sy').value = mesh.scale.y.toFixed(3);
+    document.getElementById('prop-sz').value = mesh.scale.z.toFixed(3);
+    this._updating = false;
+  }
+}
+
+// ============================================================
+// RIBBON UI
+// ============================================================
+class RibbonUI {
+  constructor(app) {
+    this.app = app;
+    this.activeTab = 'file';
+    this.init();
+  }
+
+  init() {
+    // Tab switching
+    document.querySelectorAll('.ribbon-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        this.activateTab(tab.dataset.tab);
+      });
+    });
+
+    // File tab buttons
+    this._bind('btn-new', () => this.app.newScene());
+    this._bind('btn-open', () => this.app.loadScene());
+    this._bind('btn-save', () => this.app.saveScene());
+    this._bind('btn-export-stl', () => this.app.exportManager.exportSTL(this.app.sceneManager.scene));
+    this._bind('btn-export-obj', () => this.app.exportManager.exportOBJ(this.app.sceneManager.scene));
+    this._bind('btn-undo', () => this.app.undo());
+    this._bind('btn-redo', () => this.app.redo());
+
+    // Primitives tab
+    this._bind('btn-add-box', () => this.app.addPrimitive('box'));
+    this._bind('btn-add-sphere', () => this.app.addPrimitive('sphere'));
+    this._bind('btn-add-cylinder', () => this.app.addPrimitive('cylinder'));
+    this._bind('btn-add-cone', () => this.app.addPrimitive('cone'));
+    this._bind('btn-add-torus', () => this.app.addPrimitive('torus'));
+    this._bind('btn-add-plane', () => this.app.addPrimitive('plane'));
+    this._bind('btn-add-capsule', () => this.app.addPrimitive('capsule'));
+    this._bind('btn-add-tube', () => this.app.addPrimitive('tube'));
+    this._bind('btn-add-hemisphere', () => this.app.addPrimitive('hemisphere'));
+    this._bind('btn-add-pyramid', () => this.app.addPrimitive('pyramid'));
+
+    // Sketch tab
+    this._bind('btn-start-sketch', () => {
+      const plane = document.getElementById('sketch-plane-select').value;
+      this.app.startSketch(plane);
+    });
+    this._bind('btn-finish-sketch', () => this.app.finishSketch());
+    this._bind('btn-sketch-line', () => this.app.setSketchTool('line'));
+    this._bind('btn-sketch-rect', () => this.app.setSketchTool('rect'));
+    this._bind('btn-sketch-circle', () => this.app.setSketchTool('circle'));
+
+    // Operations tab
+    this._bind('btn-extrude', () => this.app.showExtrudeDialog());
+    this._bind('btn-revolve', () => this.app.showRevolveDialog());
+    this._bind('btn-bool-union', () => this.app.performBoolean('union'));
+    this._bind('btn-bool-subtract', () => this.app.performBoolean('subtract'));
+    this._bind('btn-bool-intersect', () => this.app.performBoolean('intersect'));
+    this._bind('btn-delete-sel', () => this.app.deleteSelected());
+    this._bind('btn-duplicate', () => this.app.duplicateSelected());
+    this._bind('btn-hide-sel', () => this.app.hideSelected());
+    this._bind('btn-mirror-x', () => this.app.mirrorObject('x'));
+    this._bind('btn-mirror-y', () => this.app.mirrorObject('y'));
+    this._bind('btn-mirror-z', () => this.app.mirrorObject('z'));
+    this._bind('btn-array-linear', () => this.app.linearArray());
+    this._bind('btn-array-polar', () => this.app.polarArray());
+    this._bind('btn-array-grid', () => this.app.gridArray());
+    this._bind('btn-export-html', () => this.app.showExportHTMLDialog());
+    this._bind('btn-screenshot', () => this.app.takeScreenshot());
+
+    // Materials tab
+    this._bind('btn-apply-material', () => {
+      const preset = document.getElementById('material-preset-select').value;
+      const color = document.getElementById('material-color-picker').value;
+      const roughness = parseFloat(document.getElementById('mat-roughness').value);
+      const metalness = parseFloat(document.getElementById('mat-metalness').value);
+      this.app.applyMaterial(preset, color, roughness, metalness);
+    });
+
+    document.getElementById('material-preset-select').addEventListener('change', (e) => {
+      const preset = e.target.value;
+      const p = MaterialLibrary.presets[preset];
+      if (p) {
+        const colorPicker = document.getElementById('material-color-picker');
+        colorPicker.value = '#' + p.color.toString(16).padStart(6, '0');
+        document.getElementById('mat-roughness').value = p.roughness;
+        document.getElementById('mat-roughness-val').textContent = p.roughness.toFixed(2);
+        document.getElementById('mat-metalness').value = p.metalness;
+        document.getElementById('mat-metalness-val').textContent = p.metalness.toFixed(2);
+      }
+    });
+
+    // View tab
+    this._bind('btn-toggle-grid', () => this.app.toggleGrid());
+    this._bind('btn-toggle-axes', () => this.app.toggleAxes());
+    this._bind('btn-toggle-wireframe', () => this.app.toggleWireframe());
+    this._bind('btn-toggle-shadows', () => this.app.toggleShadows());
+    this._bind('btn-view-front', () => this.app.cameraController.setView('front'));
+    this._bind('btn-view-top', () => this.app.cameraController.setView('top'));
+    this._bind('btn-view-right', () => this.app.cameraController.setView('right'));
+    this._bind('btn-view-iso', () => this.app.cameraController.setView('iso'));
+    this._bind('btn-frame-all', () => this.app.cameraController.frameAll(this.app.sceneManager.getAllObjects()));
+    this._bind('btn-frame-sel', () => {
+      const sel = this.app.selectionManager.getSelected().map(id => this.app.sceneManager.getObject(id)).filter(Boolean);
+      this.app.cameraController.frameSelected(sel);
+    });
+
+    // Viewport buttons
+    this._bind('vbtn-top', () => this.app.cameraController.setView('top'));
+    this._bind('vbtn-front', () => this.app.cameraController.setView('front'));
+    this._bind('vbtn-right', () => this.app.cameraController.setView('right'));
+    this._bind('vbtn-iso', () => this.app.cameraController.setView('iso'));
+  }
+
+  _bind(id, fn) {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('click', fn);
+  }
+
+  activateTab(tabName) {
+    this.activeTab = tabName;
+    document.querySelectorAll('.ribbon-tab').forEach(t => {
+      t.classList.toggle('active', t.dataset.tab === tabName);
+    });
+    document.querySelectorAll('.tab-content').forEach(c => {
+      c.classList.toggle('active', c.id === 'tab-' + tabName);
+    });
+  }
+
+  setSketchMode(active) {
+    const startBtn = document.getElementById('btn-start-sketch');
+    const finishBtn = document.getElementById('btn-finish-sketch');
+    const lineBtn = document.getElementById('btn-sketch-line');
+    const rectBtn = document.getElementById('btn-sketch-rect');
+    const circBtn = document.getElementById('btn-sketch-circle');
+
+    if (startBtn) startBtn.disabled = active;
+    if (finishBtn) finishBtn.disabled = !active;
+    if (lineBtn) lineBtn.disabled = !active;
+    if (rectBtn) rectBtn.disabled = !active;
+    if (circBtn) circBtn.disabled = !active;
+
+    const indicator = document.getElementById('sketch-indicator');
+    if (indicator) indicator.classList.toggle('active', active);
+  }
+
+  setSketchTool(tool) {
+    ['btn-sketch-line', 'btn-sketch-rect', 'btn-sketch-circle'].forEach(id => {
+      const btn = document.getElementById(id);
+      if (btn) btn.classList.remove('active');
+    });
+    const map = { line: 'btn-sketch-line', rect: 'btn-sketch-rect', circle: 'btn-sketch-circle' };
+    const btn = document.getElementById(map[tool]);
+    if (btn) btn.classList.add('active');
+  }
+
+  toggleBtnState(id, active) {
+    const btn = document.getElementById(id);
+    if (btn) btn.classList.toggle('active', active);
+  }
+}
+
+// ============================================================
+// MODAL HELPERS
+// ============================================================
+function showModal(title, fields, onOk) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+
+  let html = `<div class="modal"><div class="modal-title">${title}</div>`;
+  fields.forEach(f => {
+    html += `<div class="modal-row"><span class="modal-label">${f.label}</span>`;
+    if (f.type === 'checkbox') {
+      html += `<input type="checkbox" id="mf-${f.id}" ${f.value ? 'checked' : ''}>`;
+    } else {
+      html += `<input type="${f.type || 'number'}" class="modal-input" id="mf-${f.id}" value="${f.value !== undefined ? f.value : ''}" ${f.step ? 'step="'+f.step+'"' : ''} ${f.min !== undefined ? 'min="'+f.min+'"' : ''}>`;
+    }
+    html += `</div>`;
+  });
+  html += `<div class="modal-actions">
+    <button class="modal-btn modal-btn-secondary" id="modal-cancel">Отмена</button>
+    <button class="modal-btn modal-btn-primary" id="modal-ok">ОК</button>
+  </div></div>`;
+
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+
+  const okBtn = overlay.querySelector('#modal-ok');
+  const cancelBtn = overlay.querySelector('#modal-cancel');
+
+  const getValues = () => {
+    const vals = {};
+    fields.forEach(f => {
+      const el = overlay.querySelector('#mf-' + f.id);
+      if (el) vals[f.id] = f.type === 'checkbox' ? el.checked : (parseFloat(el.value) || el.value);
+    });
+    return vals;
+  };
+
+  okBtn.addEventListener('click', () => {
+    const vals = getValues();
+    document.body.removeChild(overlay);
+    onOk(vals);
+  });
+
+  cancelBtn.addEventListener('click', () => {
+    document.body.removeChild(overlay);
+  });
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) document.body.removeChild(overlay);
+  });
+
+  // Focus first input
+  const firstInput = overlay.querySelector('.modal-input');
+  if (firstInput) { firstInput.focus(); firstInput.select(); }
+}
+
+// ============================================================
+// MAIN APP CLASS
+// ============================================================
+class App {
+  constructor() {
+    this.sceneManager = null;
+    this.cameraController = null;
+    this.selectionManager = null;
+    this.transformTool = null;
+    this.historyManager = null;
+    this.operationTree = null;
+    this.sketchManager = null;
+    this.ribbonUI = null;
+    this.propertiesPanel = null;
+    this.modelTreeUI = null;
+    this.statusBar = null;
+    this.exportManager = null;
+    this.renderer = null;
+    this.axesRenderer = null;
+    this.camera = null;
+    this.axesCamera = null;
+    this.axesScene = null;
+    this.sketchMode = false;
+    this.activeSketchTool = 'line';
+    this.wireframeMode = false;
+    this.shadowsEnabled = true;
+    this.gridVisible = true;
+    this.axesVisible = true;
+    this._lastSketchData = null;
+    this._transformMode = 'translate';
+  }
+
+  init() {
+    const mainCanvas = document.getElementById('main-canvas');
+    const axesCanvas = document.getElementById('axes-canvas');
+    const container = document.getElementById('viewport-container');
+
+    // Renderer
+    this.renderer = new THREE.WebGLRenderer({ canvas: mainCanvas, antialias: true });
+    this.renderer.setPixelRatio(window.devicePixelRatio);
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+    // Scene Manager
+    this.sceneManager = new SceneManager();
+
+    // Camera
+    const w = container.clientWidth || 800;
+    const h = container.clientHeight || 600;
+    this.camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 10000);
+    this.camera.position.set(20, 15, 20);
+    this.camera.lookAt(0, 0, 0);
+    this.renderer.setSize(w, h);
+
+    // Camera controller
+    this.cameraController = new CameraController(this.camera, this.renderer);
+
+    // Axes renderer
+    this.axesRenderer = new THREE.WebGLRenderer({ canvas: axesCanvas, alpha: true });
+    this.axesRenderer.setSize(100, 100);
+    this.axesRenderer.setPixelRatio(window.devicePixelRatio);
+    this.axesScene = new THREE.Scene();
+    const axesHelper = new THREE.AxesHelper(0.9);
+    this.axesScene.add(axesHelper);
+    // Axes labels
+    this.axesCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 10);
+    this.axesCamera.position.set(0, 0, 3);
+
+    // Add axis labels to axes scene
+    this._addAxesLabels();
+
+    // Managers
+    this.selectionManager = new SelectionManager(this.sceneManager);
+    this.historyManager = new HistoryManager();
+    this.operationTree = new OperationTree();
+    this.sketchManager = new SketchManager(this.sceneManager.scene);
+    this.exportManager = new ExportManager();
+    this.statusBar = new StatusBar();
+
+    // Transform tool
+    this.transformTool = new TransformTool(this.camera, this.renderer, this.cameraController.controls);
+    this.transformTool.addToScene(this.sceneManager.scene);
+
+    this.transformTool.controls.addEventListener('objectChange', () => {
+      this.propertiesPanel.syncFromMesh();
+      this._scheduleAutosave();
+    });
+
+    // UI
+    this.modelTreeUI = new ModelTreeUI(this);
+    this.propertiesPanel = new PropertiesPanel(this);
+    this.ribbonUI = new RibbonUI(this);
+
+    // Events
+    mainCanvas.addEventListener('click', (e) => this.onClick(e));
+    mainCanvas.addEventListener('mousemove', (e) => this.onMouseMove(e));
+    mainCanvas.addEventListener('dblclick', (e) => this.onDblClick(e));
+    window.addEventListener('keydown', (e) => this.onKeyDown(e));
+    window.addEventListener('resize', () => this.onResize());
+
+    // Status
+    this.statusBar.setMode('Просмотр');
+    this.statusBar.setSelected(0);
+    this.statusBar.setObjectCount(0);
+
+    // Load autosave
+    this._checkAutosave();
+
+    // Push initial state
+    this.historyManager.push(this.sceneManager.serialize());
+
+    // Autosave interval
+    setInterval(() => this.autosave(), 60000);
+
+    // Transform indicator
+    document.getElementById('transform-indicator').style.display = 'none';
+
+    // Start animation
+    this.animate();
+
+    this.statusBar.setMessage('Добро пожаловать в параметрический 3D CAD!', 4000);
+  }
+
+  _addAxesLabels() {
+    const createLabel = (text, pos, color) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 32; canvas.height = 32;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = color;
+      ctx.font = 'bold 20px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, 16, 16);
+      const tex = new THREE.CanvasTexture(canvas);
+      const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false });
+      const sprite = new THREE.Sprite(mat);
+      sprite.position.copy(pos);
+      sprite.scale.set(0.4, 0.4, 1);
+      this.axesScene.add(sprite);
+    };
+    createLabel('X', new THREE.Vector3(1.2, 0, 0), '#ff4444');
+    createLabel('Y', new THREE.Vector3(0, 1.2, 0), '#44ff44');
+    createLabel('Z', new THREE.Vector3(0, 0, 1.2), '#4488ff');
+  }
+
+  _checkAutosave() {
+    const data = this.exportManager.loadFromLocalStorage();
+    if (data && data.objects && data.objects.length > 0) {
+      const indicator = document.createElement('div');
+      indicator.style.cssText = 'position:fixed;top:100px;left:50%;transform:translateX(-50%);background:#2d2d2d;border:1px solid #0078d4;border-radius:8px;padding:16px 24px;z-index:2000;color:#ccc;font-size:13px;text-align:center;';
+      indicator.innerHTML = `<div style="margin-bottom:10px">Найдено автосохранение. Восстановить сцену?</div>
+        <button id="restore-yes" style="margin-right:8px;padding:6px 16px;background:#0078d4;color:#fff;border:none;border-radius:4px;cursor:pointer">Восстановить</button>
+        <button id="restore-no" style="padding:6px 16px;background:#3d3d3d;color:#ccc;border:1px solid #555;border-radius:4px;cursor:pointer">Новая сцена</button>`;
+      document.body.appendChild(indicator);
+      document.getElementById('restore-yes').addEventListener('click', () => {
+        this.sceneManager.deserialize(data);
+        this._refreshUI();
+        document.body.removeChild(indicator);
+        this.statusBar.setMessage('Сцена восстановлена из автосохранения', 3000);
+      });
+      document.getElementById('restore-no').addEventListener('click', () => {
+        document.body.removeChild(indicator);
+      });
+    }
+  }
+
+  addPrimitive(type) {
+    const params = PrimitiveFactory.getDefaultParams(type);
+    const mesh = PrimitiveFactory.create(type, params);
+
+    // Offset new objects slightly to avoid overlap
+    const count = this.sceneManager.getAllObjects().length;
+    mesh.position.set((count % 5) * 0.5, 0, Math.floor(count / 5) * 0.5);
+
+    const id = this.sceneManager.nextId++;
+    const name = PrimitiveFactory.getTypeName(type) + ' ' + id;
+
+    const sceneObj = {
+      id, name, type, kind: 'primitive',
+      mesh, params,
+      materialParams: MaterialLibrary.getParams(mesh),
+      visible: true, locked: false,
+      children: [], parent: null
+    };
+
+    this.sceneManager.addObject(sceneObj);
+    this.operationTree.add({ type: 'addPrimitive', params: { type, params }, objectId: id });
+
+    this._refreshUI();
+    this.historyManager.push(this.sceneManager.serialize());
+
+    // Select the new object
+    this.selectionManager.clearSelection();
+    this.selectionManager.select(id);
+    this.transformTool.attach(mesh);
+    this.propertiesPanel.update(sceneObj);
+    this.modelTreeUI.setSelected([id]);
+    this.statusBar.setSelected(1);
+    this.statusBar.setMode('Перемещение');
+
+    this.statusBar.setMessage(`Добавлен: ${name}`, 2000);
+
+    return sceneObj;
+  }
+
+  startSketch(planeType) {
+    if (this.sketchMode) this.cancelSketch();
+    this.sketchMode = true;
+    this.sketchManager.startSketch(planeType);
+    this.ribbonUI.setSketchMode(true);
+    this.ribbonUI.activateTab('sketch');
+    this.setSketchTool('line');
+    this.statusBar.setMode('Эскиз: ' + planeType);
+    this.statusBar.setMessage('Эскиз начат. Кликайте для добавления точек.', 3000);
+
+    // Disable transform tool
+    this.transformTool.detach();
+    this.selectionManager.clearSelection();
+    this.propertiesPanel.clear();
+    this.modelTreeUI.setSelected([]);
+  }
+
+  setSketchTool(tool) {
+    this.activeSketchTool = tool;
+    this.sketchManager.setTool(tool);
+    this.ribbonUI.setSketchTool(tool);
+    const names = { line: 'Линия', rect: 'Прямоугольник', circle: 'Окружность' };
+    this.statusBar.setMode('Эскиз: ' + (names[tool] || tool));
+  }
+
+  finishSketch() {
+    if (!this.sketchMode) return;
+    const sketchData = this.sketchManager.finishSketch();
+    this.sketchMode = false;
+    this.ribbonUI.setSketchMode(false);
+    this.statusBar.setMode('Просмотр');
+
+    if (sketchData && sketchData.segments && sketchData.segments.length > 0) {
+      this._lastSketchData = sketchData;
+      this.statusBar.setMessage('Эскиз завершён. Используйте "Выдавить" или "Вращать".', 4000);
+    } else {
+      this._lastSketchData = null;
+      this.statusBar.setMessage('Эскиз пустой — отменён.', 2000);
+    }
+  }
+
+  cancelSketch() {
+    if (!this.sketchMode) return;
+    this.sketchManager.cancelSketch();
+    this.sketchMode = false;
+    this.ribbonUI.setSketchMode(false);
+    this.statusBar.setMode('Просмотр');
+  }
+
+  showExtrudeDialog() {
+    if (!this._lastSketchData || this._lastSketchData.segments.length === 0) {
+      this.statusBar.setMessage('Сначала создайте и завершите эскиз.', 3000);
+      return;
+    }
+    showModal('Выдавливание', [
+      { id: 'depth', label: 'Глубина:', type: 'number', value: 2, step: 0.1, min: 0.01 },
+      { id: 'bevel', label: 'Скругление:', type: 'checkbox', value: false },
+      { id: 'bevelThickness', label: 'Толщина скругления:', type: 'number', value: 0.1, step: 0.01, min: 0 }
+    ], (vals) => {
+      this.extrudeSketch(vals.depth, vals.bevel, vals.bevelThickness);
+    });
+  }
+
+  extrudeSketch(depth = 2, bevelEnabled = false, bevelThickness = 0.1) {
+    if (!this._lastSketchData) return;
+    const mesh = ExtrudeEngine.extrude(this._lastSketchData, depth, bevelEnabled, bevelThickness);
+    if (!mesh) { this.statusBar.setMessage('Ошибка выдавливания. Проверьте эскиз.', 3000); return; }
+
+    const id = this.sceneManager.nextId++;
+    const name = 'Выдавливание ' + id;
+    const sceneObj = {
+      id, name, type: 'extrude', kind: 'extrude',
+      mesh, params: { depth, bevelEnabled, bevelThickness },
+      materialParams: MaterialLibrary.getParams(mesh),
+      visible: true, locked: false, children: [], parent: null
+    };
+    this.sceneManager.addObject(sceneObj);
+    this._lastSketchData = null;
+    this._refreshUI();
+    this.historyManager.push(this.sceneManager.serialize());
+    this.statusBar.setMessage('Выдавливание создано: ' + name, 2000);
+  }
+
+  showRevolveDialog() {
+    if (!this._lastSketchData || this._lastSketchData.segments.length === 0) {
+      this.statusBar.setMessage('Сначала создайте и завершите эскиз.', 3000);
+      return;
+    }
+    showModal('Вращение', [
+      { id: 'angle', label: 'Угол (градусы):', type: 'number', value: 360, step: 1, min: 1 },
+      { id: 'segments', label: 'Сегменты:', type: 'number', value: 32, step: 1, min: 3 }
+    ], (vals) => {
+      this.revolveSketch(vals.angle * Math.PI / 180, vals.segments);
+    });
+  }
+
+  revolveSketch(angle = Math.PI * 2, segments = 32) {
+    if (!this._lastSketchData) return;
+    const mesh = ExtrudeEngine.revolve(this._lastSketchData, angle, segments);
+    if (!mesh) { this.statusBar.setMessage('Ошибка вращения. Проверьте эскиз.', 3000); return; }
+
+    const id = this.sceneManager.nextId++;
+    const name = 'Вращение ' + id;
+    const sceneObj = {
+      id, name, type: 'revolve', kind: 'revolve',
+      mesh, params: { angle, segments },
+      materialParams: MaterialLibrary.getParams(mesh),
+      visible: true, locked: false, children: [], parent: null
+    };
+    this.sceneManager.addObject(sceneObj);
+    this._lastSketchData = null;
+    this._refreshUI();
+    this.historyManager.push(this.sceneManager.serialize());
+    this.statusBar.setMessage('Вращение создано: ' + name, 2000);
+  }
+
+  performBoolean(operation) {
+    const sel = this.selectionManager.getSelected();
+    if (sel.length < 2) {
+      this.statusBar.setMessage('Выберите два объекта для булевой операции.', 3000);
+      return;
+    }
+    const objA = this.sceneManager.getObject(sel[0]);
+    const objB = this.sceneManager.getObject(sel[1]);
+    if (!objA || !objB || !objA.mesh || !objB.mesh) return;
+
+    let mesh = null;
+    if (operation === 'union') {
+      mesh = BooleanEngine.union(objA.mesh, objB.mesh);
+    } else if (operation === 'subtract') {
+      mesh = BooleanEngine.subtract(objA.mesh, objB.mesh, (msg) => this.statusBar.setMessage(msg, 4000));
+    } else if (operation === 'intersect') {
+      mesh = BooleanEngine.intersect(objA.mesh, objB.mesh, (msg) => this.statusBar.setMessage(msg, 4000));
+    }
+    if (!mesh) return;
+
+    const id = this.sceneManager.nextId++;
+    const opNames = { union: 'Объединение', subtract: 'Вычитание', intersect: 'Пересечение' };
+    const name = (opNames[operation] || operation) + ' ' + id;
+
+    const sceneObj = {
+      id, name, type: 'boolean', kind: 'boolean',
+      mesh, params: { operation, srcIds: [sel[0], sel[1]] },
+      materialParams: MaterialLibrary.getParams(mesh),
+      visible: true, locked: false, children: [], parent: null
+    };
+
+    this.sceneManager.removeObject(sel[0]);
+    this.sceneManager.removeObject(sel[1]);
+    this.selectionManager.clearSelection();
+    this.sceneManager.addObject(sceneObj);
+    this._refreshUI();
+    this.historyManager.push(this.sceneManager.serialize());
+    this.statusBar.setMessage(name + ' создано', 2000);
+  }
+
+  applyMaterial(preset, colorHex, roughness, metalness) {
+    const sel = this.selectionManager.getSelected();
+    if (sel.length === 0) {
+      this.statusBar.setMessage('Выберите объект для применения материала.', 2000);
+      return;
+    }
+    sel.forEach(id => {
+      const obj = this.sceneManager.getObject(id);
+      if (!obj || !obj.mesh) return;
+      if (preset) {
+        MaterialLibrary.apply(obj.mesh, preset);
+      } else {
+        const mat = obj.mesh.material;
+        if (colorHex) mat.color.set(colorHex);
+        if (roughness !== undefined) mat.roughness = roughness;
+        if (metalness !== undefined) mat.metalness = metalness;
+      }
+      obj.materialParams = MaterialLibrary.getParams(obj.mesh);
+    });
+
+    // Refresh selection highlight
+    sel.forEach(id => {
+      if (this.selectionManager.isSelected(id)) {
+        this.selectionManager._originalEmissives.delete(id);
+        this.selectionManager._highlight(id, true);
+      }
+    });
+
+    if (sel.length === 1) {
+      const obj = this.sceneManager.getObject(sel[0]);
+      this.propertiesPanel.update(obj);
+    }
+    this.historyManager.push(this.sceneManager.serialize());
+    this.statusBar.setMessage('Материал применён', 2000);
+  }
+
+  toggleGrid() {
+    this.gridVisible = !this.gridVisible;
+    this.sceneManager.setGridVisible(this.gridVisible);
+    this.ribbonUI.toggleBtnState('btn-toggle-grid', this.gridVisible);
+  }
+
+  toggleAxes() {
+    this.axesVisible = !this.axesVisible;
+    this.sceneManager.setAxesVisible(this.axesVisible);
+    this.ribbonUI.toggleBtnState('btn-toggle-axes', this.axesVisible);
+  }
+
+  toggleWireframe() {
+    this.wireframeMode = !this.wireframeMode;
+    this.sceneManager.getAllObjects().forEach(obj => {
+      if (obj.mesh && obj.mesh.material) {
+        const mats = Array.isArray(obj.mesh.material) ? obj.mesh.material : [obj.mesh.material];
+        mats.forEach(m => { m.wireframe = this.wireframeMode; });
+      }
+    });
+    this.ribbonUI.toggleBtnState('btn-toggle-wireframe', this.wireframeMode);
+    this.statusBar.setMessage(this.wireframeMode ? 'Каркасный режим включён' : 'Каркасный режим выключен', 2000);
+  }
+
+  toggleShadows() {
+    this.shadowsEnabled = !this.shadowsEnabled;
+    this.renderer.shadowMap.enabled = this.shadowsEnabled;
+    this.sceneManager.dirLight.castShadow = this.shadowsEnabled;
+    this.ribbonUI.toggleBtnState('btn-toggle-shadows', this.shadowsEnabled);
+    this.statusBar.setMessage(this.shadowsEnabled ? 'Тени включены' : 'Тени выключены', 2000);
+  }
+
+  toggleObjectVisibility(id) {
+    const obj = this.sceneManager.getObject(id);
+    if (!obj) return;
+    obj.visible = !obj.visible;
+    if (obj.mesh) obj.mesh.visible = obj.visible;
+    this.modelTreeUI.refresh(this.sceneManager.getAllObjects());
+  }
+
+  deleteSelected() {
+    const sel = this.selectionManager.getSelected();
+    if (sel.length === 0) return;
+    this.selectionManager.clearSelection();
+    this.transformTool.detach();
+    sel.forEach(id => this.sceneManager.removeObject(id));
+    this.propertiesPanel.clear();
+    this._refreshUI();
+    this.historyManager.push(this.sceneManager.serialize());
+    this.statusBar.setMessage(`Удалено объектов: ${sel.length}`, 2000);
+  }
+
+  deleteObject(id) {
+    if (this.selectionManager.isSelected(id)) {
+      this.selectionManager.deselect(id);
+    }
+    this.transformTool.detach();
+    this.sceneManager.removeObject(id);
+    this.propertiesPanel.clear();
+    this._refreshUI();
+    this.historyManager.push(this.sceneManager.serialize());
+    this.statusBar.setMessage('Объект удалён', 2000);
+  }
+
+  hideSelected() {
+    const sel = this.selectionManager.getSelected();
+    if (sel.length === 0) return;
+    sel.forEach(id => {
+      const obj = this.sceneManager.getObject(id);
+      if (obj) {
+        obj.visible = !obj.visible;
+        if (obj.mesh) obj.mesh.visible = obj.visible;
+      }
+    });
+    this.modelTreeUI.refresh(this.sceneManager.getAllObjects());
+    this.historyManager.push(this.sceneManager.serialize());
+    this.statusBar.setMessage('Видимость изменена', 1500);
+  }
+
+  duplicateSelected() {
+    const sel = this.selectionManager.getSelected();
+    if (sel.length === 0) { this.statusBar.setMessage('Нет выделенных объектов', 2000); return; }
+    const newIds = [];
+    sel.forEach(id => {
+      const obj = this.sceneManager.getObject(id);
+      if (!obj) return;
+      const mesh = PrimitiveFactory.create(obj.kind || obj.type, obj.params || {});
+      if (!mesh) return;
+      mesh.position.copy(obj.mesh.position);
+      mesh.position.x += 2;
+      mesh.rotation.copy(obj.mesh.rotation);
+      mesh.scale.copy(obj.mesh.scale);
+      if (obj.materialParams) MaterialLibrary.applyParams(mesh, obj.materialParams);
+      const newId = this.sceneManager.nextId++;
+      const newObj = {
+        id: newId, name: obj.name + '_копия', type: obj.type, kind: obj.kind,
+        mesh, params: { ...obj.params }, materialParams: { ...obj.materialParams },
+        visible: true, locked: false, children: [], parent: null
+      };
+      this.sceneManager.addObject(newObj);
+      newIds.push(newId);
+    });
+    this._refreshUI();
+    this.historyManager.push(this.sceneManager.serialize());
+    this.statusBar.setMessage(`Дублировано ${newIds.length} объект(ов)`, 2000);
+  }
+
+  mirrorObject(axis) {
+    const sel = this.selectionManager.getSelected();
+    if (sel.length === 0) { this.statusBar.setMessage('Выберите объект для зеркального отражения', 2000); return; }
+    sel.forEach(id => {
+      const obj = this.sceneManager.getObject(id);
+      if (!obj || !obj.mesh) return;
+      const mesh = PrimitiveFactory.create(obj.kind || obj.type, obj.params || {});
+      if (!mesh) return;
+      mesh.position.copy(obj.mesh.position);
+      mesh.rotation.copy(obj.mesh.rotation);
+      mesh.scale.copy(obj.mesh.scale);
+      if (axis === 'x') { mesh.position.x = -mesh.position.x; mesh.scale.x = -mesh.scale.x; }
+      else if (axis === 'y') { mesh.position.y = -mesh.position.y; mesh.scale.y = -mesh.scale.y; }
+      else if (axis === 'z') { mesh.position.z = -mesh.position.z; mesh.scale.z = -mesh.scale.z; }
+      if (obj.materialParams) MaterialLibrary.applyParams(mesh, obj.materialParams);
+      const newId = this.sceneManager.nextId++;
+      const newObj = {
+        id: newId, name: obj.name + '_зерк', type: obj.type, kind: obj.kind,
+        mesh, params: { ...obj.params }, materialParams: { ...obj.materialParams },
+        visible: true, locked: false, children: [], parent: null
+      };
+      this.sceneManager.addObject(newObj);
+    });
+    this._refreshUI();
+    this.historyManager.push(this.sceneManager.serialize());
+    this.statusBar.setMessage('Зеркальное отражение выполнено', 2000);
+  }
+
+  linearArray() {
+    const sel = this.selectionManager.getSelected();
+    if (sel.length === 0) { this.statusBar.setMessage('Выберите объект для массива', 2000); return; }
+    showModal('Линейный массив', [
+      { id: 'count', label: 'Количество:', type: 'number', value: 3, min: 2 },
+      { id: 'stepX', label: 'Шаг X (мм):', type: 'number', value: 4, step: 0.1 },
+      { id: 'stepY', label: 'Шаг Y (мм):', type: 'number', value: 0, step: 0.1 },
+      { id: 'stepZ', label: 'Шаг Z (мм):', type: 'number', value: 0, step: 0.1 }
+    ], (vals) => {
+      const count = Math.max(2, Math.round(vals.count));
+      sel.forEach(id => {
+        const obj = this.sceneManager.getObject(id);
+        if (!obj) return;
+        for (let i = 1; i < count; i++) {
+          const mesh = PrimitiveFactory.create(obj.kind || obj.type, obj.params || {});
+          if (!mesh) return;
+          mesh.position.copy(obj.mesh.position);
+          mesh.position.x += vals.stepX * i;
+          mesh.position.y += vals.stepY * i;
+          mesh.position.z += vals.stepZ * i;
+          mesh.rotation.copy(obj.mesh.rotation);
+          mesh.scale.copy(obj.mesh.scale);
+          if (obj.materialParams) MaterialLibrary.applyParams(mesh, obj.materialParams);
+          const newId = this.sceneManager.nextId++;
+          this.sceneManager.addObject({
+            id: newId, name: obj.name + `_${i}`, type: obj.type, kind: obj.kind,
+            mesh, params: { ...obj.params }, materialParams: { ...obj.materialParams },
+            visible: true, locked: false, children: [], parent: null
+          });
+        }
+      });
+      this._refreshUI();
+      this.historyManager.push(this.sceneManager.serialize());
+      this.statusBar.setMessage('Линейный массив создан', 2000);
+    });
+  }
+
+  polarArray() {
+    const sel = this.selectionManager.getSelected();
+    if (sel.length === 0) { this.statusBar.setMessage('Выберите объект для массива', 2000); return; }
+    showModal('Полярный массив', [
+      { id: 'count', label: 'Количество:', type: 'number', value: 6, min: 2 },
+      { id: 'angle', label: 'Угол охвата (°):', type: 'number', value: 360, min: 1, max: 360 },
+      { id: 'radius', label: 'Радиус:', type: 'number', value: 5, min: 0.1, step: 0.5 }
+    ], (vals) => {
+      const count = Math.max(2, Math.round(vals.count));
+      const angleStep = (vals.angle * Math.PI / 180) / count;
+      sel.forEach(id => {
+        const obj = this.sceneManager.getObject(id);
+        if (!obj) return;
+        for (let i = 1; i < count; i++) {
+          const mesh = PrimitiveFactory.create(obj.kind || obj.type, obj.params || {});
+          if (!mesh) return;
+          const angle = angleStep * i;
+          mesh.position.set(
+            obj.mesh.position.x + Math.cos(angle) * vals.radius - Math.cos(0) * vals.radius,
+            obj.mesh.position.y,
+            obj.mesh.position.z + Math.sin(angle) * vals.radius - Math.sin(0) * vals.radius
+          );
+          mesh.rotation.copy(obj.mesh.rotation);
+          mesh.scale.copy(obj.mesh.scale);
+          if (obj.materialParams) MaterialLibrary.applyParams(mesh, obj.materialParams);
+          const newId = this.sceneManager.nextId++;
+          this.sceneManager.addObject({
+            id: newId, name: obj.name + `_р${i}`, type: obj.type, kind: obj.kind,
+            mesh, params: { ...obj.params }, materialParams: { ...obj.materialParams },
+            visible: true, locked: false, children: [], parent: null
+          });
+        }
+      });
+      this._refreshUI();
+      this.historyManager.push(this.sceneManager.serialize());
+      this.statusBar.setMessage('Полярный массив создан', 2000);
+    });
+  }
+
+  gridArray() {
+    const sel = this.selectionManager.getSelected();
+    if (sel.length === 0) { this.statusBar.setMessage('Выберите объект для массива', 2000); return; }
+    showModal('Сеточный массив', [
+      { id: 'rows', label: 'Строк:', type: 'number', value: 3, min: 1 },
+      { id: 'cols', label: 'Столбцов:', type: 'number', value: 3, min: 1 },
+      { id: 'stepX', label: 'Шаг X:', type: 'number', value: 4, step: 0.5 },
+      { id: 'stepZ', label: 'Шаг Z:', type: 'number', value: 4, step: 0.5 }
+    ], (vals) => {
+      const rows = Math.max(1, Math.round(vals.rows));
+      const cols = Math.max(1, Math.round(vals.cols));
+      sel.forEach(id => {
+        const obj = this.sceneManager.getObject(id);
+        if (!obj) return;
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            if (r === 0 && c === 0) continue;
+            const mesh = PrimitiveFactory.create(obj.kind || obj.type, obj.params || {});
+            if (!mesh) return;
+            mesh.position.set(
+              obj.mesh.position.x + c * vals.stepX,
+              obj.mesh.position.y,
+              obj.mesh.position.z + r * vals.stepZ
+            );
+            mesh.rotation.copy(obj.mesh.rotation);
+            mesh.scale.copy(obj.mesh.scale);
+            if (obj.materialParams) MaterialLibrary.applyParams(mesh, obj.materialParams);
+            const newId = this.sceneManager.nextId++;
+            this.sceneManager.addObject({
+              id: newId, name: obj.name + `_${r}_${c}`, type: obj.type, kind: obj.kind,
+              mesh, params: { ...obj.params }, materialParams: { ...obj.materialParams },
+              visible: true, locked: false, children: [], parent: null
+            });
+          }
+        }
+      });
+      this._refreshUI();
+      this.historyManager.push(this.sceneManager.serialize());
+      this.statusBar.setMessage('Сеточный массив создан', 2000);
+    });
+  }
+
+  showExportHTMLDialog() {
+    showModal('Экспорт HTML', [
+      { id: 'bg', label: 'Цвет фона:', type: 'text', value: '#1a1a1a' },
+      { id: 'autoRotate', label: 'Авто-вращение:', type: 'checkbox', value: false },
+      { id: 'shadows', label: 'Тени:', type: 'checkbox', value: true }
+    ], (vals) => {
+      this.exportManager.exportHTML(this.sceneManager.scene, this.camera, {
+        background: vals.bg,
+        autoRotate: vals.autoRotate,
+        shadows: vals.shadows
+      });
+      this.statusBar.setMessage('HTML экспортирован', 2000);
+    });
+  }
+
+  takeScreenshot() {
+    showModal('Снимок экрана', [
+      { id: 'width', label: 'Ширина (0=текущая):', type: 'number', value: 0, min: 0 },
+      { id: 'height', label: 'Высота (0=текущая):', type: 'number', value: 0, min: 0 }
+    ], (vals) => {
+      const w = vals.width > 0 ? vals.width : null;
+      const h = vals.height > 0 ? vals.height : null;
+      if (w && h) {
+        const origSize = { w: this.renderer.domElement.width, h: this.renderer.domElement.height };
+        const origAspect = this.camera.aspect;
+        this.renderer.setSize(w, h);
+        this.camera.aspect = w / h;
+        this.camera.updateProjectionMatrix();
+        this.renderer.render(this.sceneManager.scene, this.camera);
+        const url = this.renderer.domElement.toDataURL('image/png');
+        this.renderer.setSize(origSize.w, origSize.h);
+        this.camera.aspect = origAspect;
+        this.camera.updateProjectionMatrix();
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'screenshot.png';
+        a.click();
+      } else {
+        this.renderer.render(this.sceneManager.scene, this.camera);
+        const url = this.renderer.domElement.toDataURL('image/png');
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'screenshot.png';
+        a.click();
+      }
+      this.statusBar.setMessage('Снимок сохранён', 2000);
+    });
+  }
+
+  onObjectSelected(id, shiftKey = false) {
+    if (!shiftKey) {
+      this.selectionManager.clearSelection();
+    }
+    this.selectionManager.select(id);
+    const sel = this.selectionManager.getSelected();
+    this.modelTreeUI.setSelected(sel);
+    this.statusBar.setSelected(sel.length);
+
+    if (sel.length === 1) {
+      const obj = this.sceneManager.getObject(sel[0]);
+      this.propertiesPanel.update(obj);
+      if (obj && obj.mesh && !obj.locked) {
+        this.transformTool.attach(obj.mesh);
+        this.transformTool.setMode(this._transformMode);
+        const modeNames = { translate: 'Перемещение', rotate: 'Поворот', scale: 'Масштаб' };
+        this.statusBar.setMode(modeNames[this._transformMode] || this._transformMode);
+      }
+    } else {
+      this.propertiesPanel.clear();
+      this.transformTool.detach();
+      this.statusBar.setMode('Выбрано несколько');
+    }
+  }
+
+  onClick(event) {
+    if (this.sketchMode) {
+      this.sketchManager.onClick(event, this.camera, document.getElementById('main-canvas'));
+      return;
+    }
+
+    // Check if TransformControls is handling this
+    if (this.transformTool.controls.dragging) return;
+
+    const id = this.selectionManager.pick(event, this.camera, document.getElementById('main-canvas'), event.shiftKey);
+    const sel = this.selectionManager.getSelected();
+    this.modelTreeUI.setSelected(sel);
+    this.statusBar.setSelected(sel.length);
+
+    if (id !== null) {
+      const obj = this.sceneManager.getObject(id);
+      if (obj && obj.mesh && !obj.locked) {
+        this.propertiesPanel.update(obj);
+        this.transformTool.attach(obj.mesh);
+        this.transformTool.setMode(this._transformMode);
+        const modeNames = { translate: 'Перемещение', rotate: 'Поворот', scale: 'Масштаб' };
+        this.statusBar.setMode(modeNames[this._transformMode] || this._transformMode);
+      }
+    } else if (sel.length === 0) {
+      this.propertiesPanel.clear();
+      this.transformTool.detach();
+      this.statusBar.setMode('Просмотр');
+    }
+  }
+
+  onDblClick(event) {
+    if (this.sketchMode) {
+      this.finishSketch();
+    }
+  }
+
+  onMouseMove(event) {
+    if (this.sketchMode) {
+      this.sketchManager.onMouseMove(event, this.camera, document.getElementById('main-canvas'));
+      const pt = this.sketchManager.getPlaneIntersection(event, this.camera, document.getElementById('main-canvas'));
+      if (pt) this.statusBar.setCoords(pt.x, pt.y, pt.z);
+      return;
+    }
+
+    // Update coords from raycaster
+    const canvas = document.getElementById('main-canvas');
+    const rect = canvas.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(new THREE.Vector2(x, y), this.camera);
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const pt = new THREE.Vector3();
+    raycaster.ray.intersectPlane(plane, pt);
+    if (pt) this.statusBar.setCoords(pt.x, pt.y, pt.z);
+  }
+
+  onKeyDown(event) {
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement) return;
+
+    const key = event.key.toLowerCase();
+
+    if (event.ctrlKey || event.metaKey) {
+      if (key === 'z' && !event.shiftKey) { event.preventDefault(); this.undo(); return; }
+      if (key === 'y' || (key === 'z' && event.shiftKey)) { event.preventDefault(); this.redo(); return; }
+      if (key === 's') { event.preventDefault(); this.saveScene(); return; }
+      if (key === 'n') { event.preventDefault(); this.newScene(); return; }
+      if (key === 'a') { event.preventDefault(); this._selectAll(); return; }
+      if (key === 'c') { event.preventDefault(); this._copySelected(); return; }
+      if (key === 'v') { event.preventDefault(); this._pasteObjects(); return; }
+      if (key === 'd') { event.preventDefault(); this.duplicateSelected(); return; }
+      return;
+    }
+
+    if (this.sketchMode) {
+      if (key === 'escape') { this.cancelSketch(); }
+      if (key === 'tab') { event.preventDefault(); this.finishSketch(); }
+      return;
+    }
+
+    switch(key) {
+      case 'delete':
+      case 'backspace':
+        this.deleteSelected();
+        break;
+      case 'g':
+        this._setTransformMode('translate');
+        break;
+      case 'r':
+        this._setTransformMode('rotate');
+        break;
+      case 's':
+        this._setTransformMode('scale');
+        break;
+      case 'h':
+        this.hideSelected();
+        break;
+      case 'f':
+        const selObjs = this.selectionManager.getSelected().map(id => this.sceneManager.getObject(id)).filter(Boolean);
+        if (selObjs.length > 0) this.cameraController.frameSelected(selObjs);
+        else this.cameraController.frameAll(this.sceneManager.getAllObjects());
+        break;
+      case 'home':
+        this.cameraController.frameAll(this.sceneManager.getAllObjects());
+        break;
+      case '1':
+        if (event.location === 3) this.cameraController.setView('front'); // Numpad1
+        break;
+      case '3':
+        if (event.location === 3) this.cameraController.setView('right'); // Numpad3
+        break;
+      case '7':
+        if (event.location === 3) this.cameraController.setView('top'); // Numpad7
+        break;
+      case '5':
+        if (event.location === 3) this.cameraController.setView('iso'); // Numpad5
+        break;
+      case 'tab':
+        event.preventDefault();
+        if (this._lastSketchData) {
+          this.startSketch('XY');
+        }
+        break;
+      case 'escape':
+        this.selectionManager.clearSelection();
+        this.transformTool.detach();
+        this.propertiesPanel.clear();
+        this.modelTreeUI.setSelected([]);
+        this.statusBar.setSelected(0);
+        this.statusBar.setMode('Просмотр');
+        break;
+    }
+  }
+
+  _copyBuffer = [];
+
+  _copySelected() {
+    const sel = this.selectionManager.getSelected();
+    this._copyBuffer = sel.map(id => {
+      const obj = this.sceneManager.getObject(id);
+      if (!obj) return null;
+      return {
+        kind: obj.kind || obj.type, type: obj.type, name: obj.name,
+        params: { ...obj.params }, materialParams: { ...obj.materialParams },
+        position: obj.mesh ? obj.mesh.position.toArray() : [0,0,0],
+        rotation: obj.mesh ? [obj.mesh.rotation.x, obj.mesh.rotation.y, obj.mesh.rotation.z] : [0,0,0],
+        scale: obj.mesh ? obj.mesh.scale.toArray() : [1,1,1]
+      };
+    }).filter(Boolean);
+    this.statusBar.setMessage(`Скопировано ${this._copyBuffer.length} объект(ов)`, 2000);
+  }
+
+  _pasteObjects() {
+    if (!this._copyBuffer || this._copyBuffer.length === 0) {
+      this.statusBar.setMessage('Буфер обмена пуст', 2000); return;
+    }
+    const newIds = [];
+    this._copyBuffer.forEach(data => {
+      const mesh = PrimitiveFactory.create(data.kind, data.params || {});
+      if (!mesh) return;
+      mesh.position.set(data.position[0] + 2, data.position[1], data.position[2]);
+      mesh.rotation.set(data.rotation[0], data.rotation[1], data.rotation[2]);
+      mesh.scale.set(data.scale[0], data.scale[1], data.scale[2]);
+      if (data.materialParams) MaterialLibrary.applyParams(mesh, data.materialParams);
+      const newId = this.sceneManager.nextId++;
+      this.sceneManager.addObject({
+        id: newId, name: data.name + '_копия', type: data.type, kind: data.kind,
+        mesh, params: { ...data.params }, materialParams: { ...data.materialParams },
+        visible: true, locked: false, children: [], parent: null
+      });
+      newIds.push(newId);
+    });
+    this._refreshUI();
+    this.historyManager.push(this.sceneManager.serialize());
+    this.statusBar.setMessage(`Вставлено ${newIds.length} объект(ов)`, 2000);
+  }
+
+  _setTransformMode(mode) {
+    this._transformMode = mode;
+    this.transformTool.setMode(mode);
+    const modeNames = { translate: 'Перемещение (G)', rotate: 'Поворот (R)', scale: 'Масштаб (S)' };
+    this.statusBar.setMode(modeNames[mode] || mode);
+
+    const indicator = document.getElementById('transform-indicator');
+    if (indicator) {
+      indicator.textContent = modeNames[mode] || mode;
+      indicator.style.display = 'block';
+      clearTimeout(this._indicatorTimer);
+      this._indicatorTimer = setTimeout(() => {
+        indicator.style.display = 'none';
+      }, 2000);
+    }
+  }
+
+  _selectAll() {
+    const all = this.sceneManager.getAllObjects();
+    this.selectionManager.clearSelection();
+    all.forEach(obj => this.selectionManager.select(obj.id));
+    const sel = this.selectionManager.getSelected();
+    this.modelTreeUI.setSelected(sel);
+    this.statusBar.setSelected(sel.length);
+  }
+
+  undo() {
+    if (!this.historyManager.canUndo()) {
+      this.statusBar.setMessage('Нечего отменять', 2000);
+      return;
+    }
+    const state = this.historyManager.undo();
+    if (state) {
+      this.selectionManager.clearSelection();
+      this.transformTool.detach();
+      this.sceneManager.deserialize(state);
+      this._refreshUI();
+      this.propertiesPanel.clear();
+      this.statusBar.setMessage('Отменено', 1500);
+    }
+  }
+
+  redo() {
+    if (!this.historyManager.canRedo()) {
+      this.statusBar.setMessage('Нечего повторять', 2000);
+      return;
+    }
+    const state = this.historyManager.redo();
+    if (state) {
+      this.selectionManager.clearSelection();
+      this.transformTool.detach();
+      this.sceneManager.deserialize(state);
+      this._refreshUI();
+      this.propertiesPanel.clear();
+      this.statusBar.setMessage('Повторено', 1500);
+    }
+  }
+
+  autosave() {
+    const data = this.sceneManager.serialize();
+    this.exportManager.saveToLocalStorage(data);
+  }
+
+  _scheduleAutosave() {
+    clearTimeout(this._autosaveTimer);
+    this._autosaveTimer = setTimeout(() => this.autosave(), 5000);
+  }
+
+  newScene() {
+    if (this.sceneManager.getAllObjects().length > 0) {
+      if (!confirm('Создать новую сцену? Несохранённые данные будут потеряны.')) return;
+    }
+    if (this.sketchMode) this.cancelSketch();
+    this.selectionManager.clearSelection();
+    this.transformTool.detach();
+    this.sceneManager.clear();
+    this.operationTree.clear();
+    this.historyManager.clear();
+    this._lastSketchData = null;
+    this._refreshUI();
+    this.propertiesPanel.clear();
+    this.historyManager.push(this.sceneManager.serialize());
+    this.statusBar.setMessage('Новая сцена создана', 2000);
+  }
+
+  saveScene() {
+    const data = this.sceneManager.serialize();
+    const str = JSON.stringify(data, null, 2);
+    const blob = new Blob([str], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'scene.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    this.exportManager.saveToLocalStorage(data);
+    this.statusBar.setMessage('Сцена сохранена', 2000);
+  }
+
+  loadScene() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const data = JSON.parse(ev.target.result);
+          if (this.sketchMode) this.cancelSketch();
+          this.selectionManager.clearSelection();
+          this.transformTool.detach();
+          this.sceneManager.deserialize(data);
+          this._refreshUI();
+          this.propertiesPanel.clear();
+          this.historyManager.push(this.sceneManager.serialize());
+          this.cameraController.frameAll(this.sceneManager.getAllObjects());
+          this.statusBar.setMessage('Сцена загружена: ' + file.name, 3000);
+        } catch(err) {
+          this.statusBar.setMessage('Ошибка загрузки файла: ' + err.message, 4000);
+        }
+      };
+      reader.readAsText(file);
+    });
+    input.click();
+  }
+
+  onResize() {
+    const container = document.getElementById('viewport-container');
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(w, h);
+  }
+
+  _refreshUI() {
+    const objs = this.sceneManager.getAllObjects();
+    this.modelTreeUI.refresh(objs);
+    this.statusBar.setObjectCount(objs.length);
+    // Apply wireframe if active
+    if (this.wireframeMode) {
+      objs.forEach(obj => {
+        if (obj.mesh && obj.mesh.material) {
+          const mats = Array.isArray(obj.mesh.material) ? obj.mesh.material : [obj.mesh.material];
+          mats.forEach(m => { m.wireframe = true; });
+        }
+      });
+    }
+  }
+
+  animate() {
+    requestAnimationFrame(() => this.animate());
+    this.cameraController.update();
+    this.renderer.render(this.sceneManager.scene, this.camera);
+
+    // Update axes gizmo
+    this.axesCamera.quaternion.copy(this.camera.quaternion);
+    this.axesRenderer.render(this.axesScene, this.axesCamera);
+  }
+}
+
+// ============================================================
+// INIT
+// ============================================================
+const app = new App();
+app.init();
+
+</script>
+</body>
+</html>
