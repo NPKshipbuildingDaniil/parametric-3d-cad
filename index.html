@@ -14,22 +14,22 @@
 </script>
 <style>
 :root {
-  --bg-dark: #1e1e1e;
-  --bg-panel: #252525;
-  --bg-ribbon: #2d2d2d;
+  --bg-dark: #f0f0f0;
+  --bg-panel: #ffffff;
+  --bg-ribbon: #e8e8e8;
   --accent: #0078d4;
   --accent-hover: #106ebe;
-  --text: #cccccc;
-  --text-dim: #888888;
-  --border: #404040;
-  --border-light: #555555;
-  --success: #4caf50;
-  --warning: #ff9800;
-  --danger: #f44336;
-  --selected-bg: #094771;
-  --input-bg: #3c3c3c;
-  --button-bg: #3d3d3d;
-  --button-hover: #4d4d4d;
+  --text: #1a1a1a;
+  --text-dim: #555555;
+  --border: #cccccc;
+  --border-light: #aaaaaa;
+  --success: #107c10;
+  --warning: #c75000;
+  --danger: #d13438;
+  --selected-bg: #cce4f7;
+  --input-bg: #ffffff;
+  --button-bg: #e8e8e8;
+  --button-hover: #d0d0d0;
   --button-active: #0078d4;
 }
 
@@ -75,7 +75,7 @@ html, body {
   height: 28px;
   padding: 0 8px;
   border-bottom: 1px solid var(--border);
-  background: #262626;
+  background: #d8d8d8;
 }
 
 .ribbon-tab {
@@ -255,7 +255,7 @@ input[type="color"].ribbon-color {
   text-transform: uppercase;
   letter-spacing: 0.5px;
   border-bottom: 1px solid var(--border);
-  background: #2a2a2a;
+  background: #f0f0f0;
   flex-shrink: 0;
 }
 
@@ -267,7 +267,7 @@ input[type="color"].ribbon-color {
 
 #tree-list::-webkit-scrollbar { width: 6px; }
 #tree-list::-webkit-scrollbar-track { background: transparent; }
-#tree-list::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+#tree-list::-webkit-scrollbar-thumb { background: #aaa; border-radius: 3px; }
 
 .tree-item {
   display: flex;
@@ -282,7 +282,7 @@ input[type="color"].ribbon-color {
 }
 
 .tree-item:hover {
-  background: #333;
+  background: #e8e8e8;
 }
 
 .tree-item.selected {
@@ -307,7 +307,7 @@ input[type="color"].ribbon-color {
   font-size: 9px;
   padding: 1px 4px;
   border-radius: 3px;
-  background: #444;
+  background: #e0e0e0;
   color: var(--text-dim);
   flex-shrink: 0;
 }
@@ -333,7 +333,7 @@ input[type="color"].ribbon-color {
 }
 
 .tree-action-btn:hover {
-  background: #555;
+  background: #d0d0d0;
   color: var(--text);
 }
 
@@ -350,7 +350,7 @@ input[type="color"].ribbon-color {
   flex: 1;
   position: relative;
   overflow: hidden;
-  background: #1a1a1a;
+  background: #f0f0f0;
 }
 
 #main-canvas {
@@ -379,7 +379,7 @@ input[type="color"].ribbon-color {
 }
 
 .view-btn {
-  background: rgba(45,45,45,0.85);
+  background: rgba(240,240,240,0.85);
   border: 1px solid var(--border);
   color: var(--text);
   padding: 4px 10px;
@@ -418,7 +418,7 @@ input[type="color"].ribbon-color {
   bottom: 40px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(45,45,45,0.9);
+  background: rgba(240,240,240,0.9);
   color: var(--text);
   padding: 4px 16px;
   border-radius: 20px;
@@ -451,7 +451,7 @@ input[type="color"].ribbon-color {
 
 #props-content::-webkit-scrollbar { width: 6px; }
 #props-content::-webkit-scrollbar-track { background: transparent; }
-#props-content::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+#props-content::-webkit-scrollbar-thumb { background: #aaa; border-radius: 3px; }
 
 .props-section {
   margin-bottom: 12px;
@@ -579,7 +579,7 @@ input[type="color"].ribbon-color {
 .props-type-badge {
   display: inline-block;
   padding: 2px 8px;
-  background: #444;
+  background: #e0e0e0;
   border-radius: 3px;
   font-size: 10px;
   color: var(--text-dim);
@@ -726,7 +726,7 @@ input[type="color"].ribbon-color {
   bottom: 100%;
   left: 50%;
   transform: translateX(-50%);
-  background: #111;
+  background: #333;
   color: var(--text);
   padding: 4px 8px;
   border-radius: 4px;
@@ -741,8 +741,8 @@ input[type="color"].ribbon-color {
 /* ========== SCROLLBAR ========== */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #666; }
+::-webkit-scrollbar-thumb { background: #aaa; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #888; }
 
 /* ========== MISC ========== */
 .flex-row { display: flex; align-items: center; gap: 6px; }
@@ -1232,10 +1232,369 @@ input[type="number"].props-input::-webkit-outer-spin-button {
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { TransformControls } from 'three/addons/controls/TransformControls.js';
-import { STLExporter } from 'three/addons/exporters/STLExporter.js';
-import { OBJExporter } from 'three/addons/exporters/OBJExporter.js';
-import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
+// ---- BufferGeometryUtils (inline, only mergeGeometries used) ----
+const BufferGeometryUtils = {
+  mergeGeometries(geometries, useGroups = false) {
+    const isIndexed = geometries[0].index !== null;
+    const mergedGeometry = new THREE.BufferGeometry();
+    const attrArrays = {};
+    let indexArrayCount = 0;
+    for (let i = 0; i < geometries.length; i++) {
+      const geo = geometries[i];
+      for (const name in geo.attributes) {
+        if (!attrArrays[name]) attrArrays[name] = [];
+        attrArrays[name].push(geo.attributes[name].array);
+      }
+      if (isIndexed) indexArrayCount += geo.index.count;
+    }
+    for (const name in attrArrays) {
+      const first = geometries[0].attributes[name];
+      const itemSize = first.itemSize;
+      const ArrayType = first.array.constructor;
+      const totalCount = attrArrays[name].reduce((sum, arr) => sum + arr.length, 0);
+      const merged = new ArrayType(totalCount);
+      let offset = 0;
+      for (const arr of attrArrays[name]) { merged.set(arr, offset); offset += arr.length; }
+      mergedGeometry.setAttribute(name, new THREE.BufferAttribute(merged, itemSize));
+    }
+    if (isIndexed) {
+      const indexArr = new Uint32Array(indexArrayCount);
+      let indexOffset = 0;
+      let vertexOffset = 0;
+      for (let i = 0; i < geometries.length; i++) {
+        const geo = geometries[i];
+        const index = geo.index.array;
+        for (let j = 0; j < index.length; j++) { indexArr[indexOffset++] = index[j] + vertexOffset; }
+        if (useGroups) { mergedGeometry.addGroup(indexOffset - index.length, index.length, i); }
+        vertexOffset += geo.attributes.position.count;
+      }
+      mergedGeometry.setIndex(new THREE.BufferAttribute(indexArr, 1));
+    } else {
+      if (useGroups) {
+        let vOffset = 0;
+        for (let i = 0; i < geometries.length; i++) {
+          const count = geometries[i].attributes.position.count;
+          mergedGeometry.addGroup(vOffset, count, i);
+          vOffset += count;
+        }
+      }
+    }
+    return mergedGeometry;
+  }
+};
+
+// ---- STLExporter (inline) ----
+class STLExporter {
+  parse(scene, options = {}) {
+    const binary = options.binary !== undefined ? options.binary : false;
+    const objects = [];
+    scene.traverse(obj => { if (obj.isMesh) objects.push(obj); });
+    let triangleCount = 0;
+    objects.forEach(mesh => {
+      const geo = mesh.geometry;
+      if (geo.index !== null) triangleCount += geo.index.count / 3;
+      else triangleCount += geo.attributes.position.count / 3;
+    });
+    if (binary) {
+      const buf = new ArrayBuffer(84 + triangleCount * 50);
+      const view = new DataView(buf);
+      let offset = 80;
+      view.setUint32(offset, triangleCount, true); offset += 4;
+      objects.forEach(mesh => {
+        const geo = mesh.geometry.clone();
+        geo.applyMatrix4(mesh.matrixWorld);
+        if (!geo.attributes.normal) geo.computeVertexNormals();
+        const pos = geo.attributes.position;
+        const nor = geo.attributes.normal;
+        const idx = geo.index;
+        const faceCount = idx ? idx.count / 3 : pos.count / 3;
+        for (let i = 0; i < faceCount; i++) {
+          const a = idx ? idx.getX(i*3) : i*3;
+          const b = idx ? idx.getX(i*3+1) : i*3+1;
+          const c = idx ? idx.getX(i*3+2) : i*3+2;
+          const nx = (nor.getX(a)+nor.getX(b)+nor.getX(c))/3;
+          const ny = (nor.getY(a)+nor.getY(b)+nor.getY(c))/3;
+          const nz = (nor.getZ(a)+nor.getZ(b)+nor.getZ(c))/3;
+          view.setFloat32(offset, nx, true); offset+=4;
+          view.setFloat32(offset, ny, true); offset+=4;
+          view.setFloat32(offset, nz, true); offset+=4;
+          for (const vi of [a,b,c]) {
+            view.setFloat32(offset, pos.getX(vi), true); offset+=4;
+            view.setFloat32(offset, pos.getY(vi), true); offset+=4;
+            view.setFloat32(offset, pos.getZ(vi), true); offset+=4;
+          }
+          view.setUint16(offset, 0, true); offset+=2;
+        }
+      });
+      return buf;
+    } else {
+      let output = 'solid exported\n';
+      objects.forEach(mesh => {
+        const geo = mesh.geometry.clone();
+        geo.applyMatrix4(mesh.matrixWorld);
+        if (!geo.attributes.normal) geo.computeVertexNormals();
+        const pos = geo.attributes.position;
+        const nor = geo.attributes.normal;
+        const idx = geo.index;
+        const faceCount = idx ? idx.count / 3 : pos.count / 3;
+        for (let i = 0; i < faceCount; i++) {
+          const a = idx ? idx.getX(i*3) : i*3;
+          const b = idx ? idx.getX(i*3+1) : i*3+1;
+          const c = idx ? idx.getX(i*3+2) : i*3+2;
+          const nx = (nor.getX(a)+nor.getX(b)+nor.getX(c))/3;
+          const ny = (nor.getY(a)+nor.getY(b)+nor.getY(c))/3;
+          const nz = (nor.getZ(a)+nor.getZ(b)+nor.getZ(c))/3;
+          output += `  facet normal ${nx} ${ny} ${nz}\n    outer loop\n`;
+          for (const vi of [a,b,c]) {
+            output += `      vertex ${pos.getX(vi)} ${pos.getY(vi)} ${pos.getZ(vi)}\n`;
+          }
+          output += `    endloop\n  endfacet\n`;
+        }
+      });
+      output += 'endsolid exported\n';
+      return output;
+    }
+  }
+}
+
+// ---- OBJExporter (inline) ----
+class OBJExporter {
+  parse(object) {
+    let output = '';
+    let indexVertex = 0;
+    const vertex = new THREE.Vector3();
+    const normal = new THREE.Vector3();
+    object.traverse(child => {
+      if (!child.isMesh) return;
+      const geo = child.geometry;
+      output += `o ${child.name || 'mesh'}\n`;
+      const pos = geo.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        vertex.fromBufferAttribute(pos, i).applyMatrix4(child.matrixWorld);
+        output += `v ${vertex.x} ${vertex.y} ${vertex.z}\n`;
+      }
+      if (geo.attributes.normal) {
+        const nor = geo.attributes.normal;
+        const normalMatrix = new THREE.Matrix3().getNormalMatrix(child.matrixWorld);
+        for (let i = 0; i < nor.count; i++) {
+          normal.fromBufferAttribute(nor, i).applyMatrix3(normalMatrix).normalize();
+          output += `vn ${normal.x} ${normal.y} ${normal.z}\n`;
+        }
+      }
+      output += 'g mesh\n';
+      const idx = geo.index;
+      const faceCount = idx ? idx.count / 3 : pos.count / 3;
+      for (let i = 0; i < faceCount; i++) {
+        const a = (idx ? idx.getX(i*3) : i*3) + 1 + indexVertex;
+        const b = (idx ? idx.getX(i*3+1) : i*3+1) + 1 + indexVertex;
+        const c = (idx ? idx.getX(i*3+2) : i*3+2) + 1 + indexVertex;
+        if (geo.attributes.normal) {
+          output += `f ${a}//${a} ${b}//${b} ${c}//${c}\n`;
+        } else {
+          output += `f ${a} ${b} ${c}\n`;
+        }
+      }
+      indexVertex += pos.count;
+    });
+    return output;
+  }
+}
+
+// ---- TransformControls (inline) ----
+class TransformControls extends THREE.Object3D {
+  constructor(camera, domElement) {
+    super();
+    this.camera = camera;
+    this.domElement = domElement;
+    this.object = undefined;
+    this.enabled = true;
+    this._mode = 'translate';
+    this._space = 'world';
+    this._dragging = false;
+    this._axis = null;
+    this._gizmo = new THREE.Group();
+    this.add(this._gizmo);
+    this._handles = [];
+    this._raycaster = new THREE.Raycaster();
+    this._plane = new THREE.Plane();
+    this._planeIntersect = new THREE.Vector3();
+    this._startIntersect = new THREE.Vector3();
+    this._startPosition = new THREE.Vector3();
+    this._startScale = new THREE.Vector3();
+    this._startQuaternion = new THREE.Quaternion();
+    this._worldPosition = new THREE.Vector3();
+    this._buildGizmo();
+    this._onMouseDown = this._onMouseDown.bind(this);
+    this._onMouseMove = this._onMouseMove.bind(this);
+    this._onMouseUp = this._onMouseUp.bind(this);
+    domElement.addEventListener('mousedown', this._onMouseDown);
+    domElement.addEventListener('mousemove', this._onMouseMove);
+    domElement.addEventListener('mouseup', this._onMouseUp);
+  }
+
+  _buildGizmo() {
+    while (this._gizmo.children.length) this._gizmo.remove(this._gizmo.children[0]);
+    this._handles = [];
+    if (this._mode === 'translate') {
+      const dirs = [
+        { axis: 'X', color: 0xff2020, dir: new THREE.Vector3(1,0,0) },
+        { axis: 'Y', color: 0x20ff20, dir: new THREE.Vector3(0,1,0) },
+        { axis: 'Z', color: 0x2020ff, dir: new THREE.Vector3(0,0,1) },
+      ];
+      dirs.forEach(({ axis, color, dir }) => {
+        const mat = new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true });
+        const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.8, 8), mat);
+        shaft.position.copy(dir).multiplyScalar(0.4);
+        shaft.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir);
+        shaft.renderOrder = 999;
+        const head = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.2, 8), mat.clone());
+        head.position.copy(dir).multiplyScalar(0.9);
+        head.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir);
+        head.renderOrder = 999;
+        const hit = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.15), new THREE.MeshBasicMaterial({ visible: false, depthTest: false }));
+        hit.position.copy(dir).multiplyScalar(0.6);
+        hit.userData.axis = axis;
+        hit.renderOrder = 999;
+        this._gizmo.add(shaft, head, hit);
+        this._handles.push(hit);
+      });
+    } else if (this._mode === 'rotate') {
+      const configs = [
+        { axis: 'X', color: 0xff2020, rotation: new THREE.Euler(0, Math.PI/2, 0) },
+        { axis: 'Y', color: 0x20ff20, rotation: new THREE.Euler(Math.PI/2, 0, 0) },
+        { axis: 'Z', color: 0x2020ff, rotation: new THREE.Euler(0, 0, 0) },
+      ];
+      configs.forEach(({ axis, color, rotation }) => {
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.025, 6, 32), new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true }));
+        ring.rotation.copy(rotation);
+        ring.renderOrder = 999;
+        ring.userData.axis = axis;
+        this._gizmo.add(ring);
+        this._handles.push(ring);
+      });
+    } else if (this._mode === 'scale') {
+      const dirs = [
+        { axis: 'X', color: 0xff2020, dir: new THREE.Vector3(1,0,0) },
+        { axis: 'Y', color: 0x20ff20, dir: new THREE.Vector3(0,1,0) },
+        { axis: 'Z', color: 0x2020ff, dir: new THREE.Vector3(0,0,1) },
+      ];
+      dirs.forEach(({ axis, color, dir }) => {
+        const mat = new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true });
+        const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.8, 8), mat);
+        shaft.position.copy(dir).multiplyScalar(0.4);
+        shaft.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir);
+        shaft.renderOrder = 999;
+        const box = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.15), mat.clone());
+        box.position.copy(dir).multiplyScalar(0.85);
+        box.renderOrder = 999;
+        box.userData.axis = axis;
+        this._gizmo.add(shaft, box);
+        this._handles.push(box);
+      });
+    }
+  }
+
+  _getMousePos(event) {
+    const rect = this.domElement.getBoundingClientRect();
+    return new THREE.Vector2(
+      ((event.clientX - rect.left) / rect.width) * 2 - 1,
+      -((event.clientY - rect.top) / rect.height) * 2 + 1
+    );
+  }
+
+  _onMouseDown(event) {
+    if (!this.enabled || !this.object || event.button !== 0) return;
+    const mouse = this._getMousePos(event);
+    this._raycaster.setFromCamera(mouse, this.camera);
+    const intersects = this._raycaster.intersectObjects(this._handles, true);
+    if (intersects.length > 0) {
+      event.stopPropagation();
+      this._axis = intersects[0].object.userData.axis;
+      if (!this._axis) return;
+      this._dragging = true;
+      this.dispatchEvent({ type: 'dragging-changed', value: true });
+      this.object.getWorldPosition(this._worldPosition);
+      this._startPosition.copy(this.object.position);
+      this._startScale.copy(this.object.scale);
+      this._startQuaternion.copy(this.object.quaternion);
+      const camDir = new THREE.Vector3();
+      this.camera.getWorldDirection(camDir);
+      this._plane.setFromNormalAndCoplanarPoint(camDir.negate(), this._worldPosition);
+      this._raycaster.ray.intersectPlane(this._plane, this._startIntersect);
+    }
+  }
+
+  _onMouseMove(event) {
+    if (!this.enabled || !this.object || !this._dragging || !this._axis) return;
+    event.preventDefault();
+    const mouse = this._getMousePos(event);
+    this._raycaster.setFromCamera(mouse, this.camera);
+    this._raycaster.ray.intersectPlane(this._plane, this._planeIntersect);
+    const delta = this._planeIntersect.clone().sub(this._startIntersect);
+    if (this._mode === 'translate') {
+      const axisVec = new THREE.Vector3(this._axis==='X'?1:0, this._axis==='Y'?1:0, this._axis==='Z'?1:0);
+      if (this._space === 'local') axisVec.applyQuaternion(this._startQuaternion);
+      const projection = delta.dot(axisVec);
+      this.object.position.copy(this._startPosition.clone().addScaledVector(axisVec, projection));
+    } else if (this._mode === 'scale') {
+      const axisVec = new THREE.Vector3(this._axis==='X'?1:0, this._axis==='Y'?1:0, this._axis==='Z'?1:0);
+      const factor = 1 + delta.dot(axisVec) * 0.5;
+      const newScale = this._startScale.clone();
+      if (this._axis === 'X') newScale.x *= factor;
+      if (this._axis === 'Y') newScale.y *= factor;
+      if (this._axis === 'Z') newScale.z *= factor;
+      this.object.scale.copy(newScale);
+    } else if (this._mode === 'rotate') {
+      const axisVec = new THREE.Vector3(this._axis==='X'?1:0, this._axis==='Y'?1:0, this._axis==='Z'?1:0);
+      const fromVec = this._startIntersect.clone().sub(this._worldPosition);
+      const toVec = this._planeIntersect.clone().sub(this._worldPosition);
+      const cross = new THREE.Vector3().crossVectors(fromVec, toVec);
+      const angle = Math.atan2(cross.dot(axisVec), fromVec.dot(toVec));
+      this.object.quaternion.copy(new THREE.Quaternion().setFromAxisAngle(axisVec, angle).multiply(this._startQuaternion));
+    }
+    this.dispatchEvent({ type: 'objectChange' });
+  }
+
+  _onMouseUp() {
+    if (!this._dragging) return;
+    this._dragging = false;
+    this._axis = null;
+    this.dispatchEvent({ type: 'dragging-changed', value: false });
+  }
+
+  attach(object) { this.object = object; this.visible = true; this._updateGizmoPosition(); return this; }
+  detach() { this.object = undefined; this.visible = false; return this; }
+
+  setMode(mode) {
+    if (this._mode === mode) return;
+    this._mode = mode;
+    this._buildGizmo();
+    this.dispatchEvent({ type: 'change' });
+  }
+
+  setSpace(space) { this._space = space; }
+
+  _updateGizmoPosition() {
+    if (!this.object) return;
+    const worldPos = new THREE.Vector3();
+    this.object.getWorldPosition(worldPos);
+    this.position.copy(worldPos);
+    const dist = this.camera.position.distanceTo(worldPos);
+    this.scale.setScalar(dist * 0.15);
+  }
+
+  updateMatrixWorld(force) {
+    if (this.object) this._updateGizmoPosition();
+    super.updateMatrixWorld(force);
+  }
+
+  dispose() {
+    this.domElement.removeEventListener('mousedown', this._onMouseDown);
+    this.domElement.removeEventListener('mousemove', this._onMouseMove);
+    this.domElement.removeEventListener('mouseup', this._onMouseUp);
+    this.detach();
+  }
+}
 
 // ============================================================
 // SCENE MANAGER
@@ -1243,7 +1602,7 @@ import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js'
 class SceneManager {
   constructor() {
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x1a1a1a);
+    this.scene.background = new THREE.Color(0xf0f0f0);
     this.objects = new Map();
     this.nextId = 1;
     this.gridVisible = true;
@@ -2266,7 +2625,7 @@ class ExportManager {
   exportHTML(scene, camera, settings = {}) {
     const sceneJSON = JSON.stringify(scene.toJSON());
     const camPos = { x: camera.position.x, y: camera.position.y, z: camera.position.z };
-    const bg = settings.background || '#1a1a1a';
+    const bg = settings.background || '#f0f0f0';
     const autoRotate = settings.autoRotate ? 'true' : 'false';
     const shadows = settings.shadows !== false ? 'true' : 'false';
     const html = `<!DOCTYPE html>
@@ -3078,10 +3437,10 @@ class App {
     const data = this.exportManager.loadFromLocalStorage();
     if (data && data.objects && data.objects.length > 0) {
       const indicator = document.createElement('div');
-      indicator.style.cssText = 'position:fixed;top:100px;left:50%;transform:translateX(-50%);background:#2d2d2d;border:1px solid #0078d4;border-radius:8px;padding:16px 24px;z-index:2000;color:#ccc;font-size:13px;text-align:center;';
+      indicator.style.cssText = 'position:fixed;top:100px;left:50%;transform:translateX(-50%);background:#ffffff;border:1px solid #0078d4;border-radius:8px;padding:16px 24px;z-index:2000;color:#1a1a1a;font-size:13px;text-align:center;';
       indicator.innerHTML = `<div style="margin-bottom:10px">Найдено автосохранение. Восстановить сцену?</div>
         <button id="restore-yes" style="margin-right:8px;padding:6px 16px;background:#0078d4;color:#fff;border:none;border-radius:4px;cursor:pointer">Восстановить</button>
-        <button id="restore-no" style="padding:6px 16px;background:#3d3d3d;color:#ccc;border:1px solid #555;border-radius:4px;cursor:pointer">Новая сцена</button>`;
+        <button id="restore-no" style="padding:6px 16px;background:#e8e8e8;color:#1a1a1a;border:1px solid #ccc;border-radius:4px;cursor:pointer">Новая сцена</button>`;
       document.body.appendChild(indicator);
       document.getElementById('restore-yes').addEventListener('click', () => {
         this.sceneManager.deserialize(data);
@@ -3581,7 +3940,7 @@ class App {
 
   showExportHTMLDialog() {
     showModal('Экспорт HTML', [
-      { id: 'bg', label: 'Цвет фона:', type: 'text', value: '#1a1a1a' },
+      { id: 'bg', label: 'Цвет фона:', type: 'text', value: '#f0f0f0' },
       { id: 'autoRotate', label: 'Авто-вращение:', type: 'checkbox', value: false },
       { id: 'shadows', label: 'Тени:', type: 'checkbox', value: true }
     ], (vals) => {
