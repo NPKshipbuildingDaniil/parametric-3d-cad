@@ -767,6 +767,79 @@ input[type="number"].props-input::-webkit-inner-spin-button,
 input[type="number"].props-input::-webkit-outer-spin-button {
   opacity: 0.5;
 }
+
+/* ========== SPLIT BUTTON & PRIMITIVE DROPDOWN ========== */
+.btn-split {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.btn-split .btn-split-main {
+  border-radius: 4px 0 0 4px;
+  flex: 1;
+}
+
+.btn-split .btn-split-arrow {
+  border-radius: 0 4px 4px 0;
+  min-width: 16px !important;
+  padding: 4px 3px !important;
+  font-size: 11px !important;
+  border-left: 1px solid rgba(0,0,0,0.12);
+}
+
+.primitive-dropdown {
+  position: fixed;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.22);
+  z-index: 2000;
+  min-width: 168px;
+  overflow: hidden;
+}
+
+.primitive-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text);
+  transition: background 0.1s;
+  white-space: nowrap;
+}
+
+.primitive-dropdown-item:hover {
+  background: var(--selected-bg);
+  color: var(--accent);
+}
+
+.primitive-dropdown-item .item-icon {
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+/* ========== BOX BUILDER INDICATOR ========== */
+#boxbuilder-indicator {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(16, 124, 16, 0.88);
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  display: none;
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(40,200,40,0.5);
+  pointer-events: none;
+}
+
+#boxbuilder-indicator.active {
+  display: block;
+}
 </style>
 </head>
 <body>
@@ -833,9 +906,16 @@ input[type="number"].props-input::-webkit-outer-spin-button {
       <div class="tab-content" id="tab-primitives">
         <div class="ribbon-group">
           <div class="ribbon-group-buttons">
-            <button class="btn btn-large" id="btn-add-box" data-tooltip="Добавить куб">
-              <span class="btn-icon">🟦</span>Куб
-            </button>
+            <div class="btn-split">
+              <button class="btn btn-large btn-split-main" id="btn-add-box" data-tooltip="Добавить куб (стандартный)">
+                <span class="btn-icon">🟦</span>Куб
+              </button><button class="btn btn-large btn-split-arrow" id="btn-add-box-dropdown" data-tooltip="Способы построения куба">▾</button>
+              <div class="primitive-dropdown" id="dropdown-box" style="display:none">
+                <div class="primitive-dropdown-item" data-method="standard"><span class="item-icon">🟦</span>Стандартный</div>
+                <div class="primitive-dropdown-item" data-method="diagonal"><span class="item-icon">📐</span>По диагонали</div>
+                <div class="primitive-dropdown-item" data-method="sides"><span class="item-icon">📏</span>По сторонам</div>
+              </div>
+            </div>
             <button class="btn btn-large" id="btn-add-sphere" data-tooltip="Добавить сферу">
               <span class="btn-icon">🔵</span>Сфера
             </button>
@@ -882,8 +962,11 @@ input[type="number"].props-input::-webkit-outer-spin-button {
               <option value="XZ">Плоскость XZ</option>
               <option value="YZ">Плоскость YZ</option>
             </select>
-            <button class="btn btn-large" id="btn-start-sketch" data-tooltip="Начать эскиз">
+            <button class="btn btn-large" id="btn-start-sketch" data-tooltip="Начать эскиз на стандартной плоскости">
               <span class="btn-icon">✏️</span>Начать
+            </button>
+            <button class="btn btn-large" id="btn-sketch-on-surface" data-tooltip="Создать эскиз на поверхности объекта">
+              <span class="btn-icon">📐</span>На поверхности
             </button>
             <button class="btn btn-large" id="btn-finish-sketch" data-tooltip="Завершить эскиз" disabled>
               <span class="btn-icon">✅</span>Завершить
@@ -1104,6 +1187,7 @@ input[type="number"].props-input::-webkit-outer-spin-button {
         <button class="view-btn" id="vbtn-iso">Изо</button>
       </div>
       <div id="sketch-indicator">✏️ Режим эскиза</div>
+      <div id="boxbuilder-indicator">🟦 Построение куба</div>
       <div id="transform-indicator">G - Перемещение | R - Поворот | S - Масштаб</div>
     </div>
 
@@ -2261,11 +2345,18 @@ class SketchManager {
     this._firstPoint = null;
     this.currentTool = 'line';
     this._snapGrid = 0.5;
+    // Custom plane support (for sketch-on-surface)
+    this.planeOrigin = new THREE.Vector3();
+    this.planeNormal = new THREE.Vector3(0, 0, 1);
+    this.planeU = new THREE.Vector3(1, 0, 0);
+    this.planeV = new THREE.Vector3(0, 1, 0);
+    this._customPlane = null;
   }
 
   startSketch(planeType) {
     this.active = true;
     this.planeType = planeType;
+    this._customPlane = null;
     this.segments = [];
     this._firstPoint = null;
 
@@ -2304,6 +2395,41 @@ class SketchManager {
     this._gridHelper = gridHelper;
   }
 
+  startSketchOnSurface(origin, normal, uAxis, vAxis) {
+    this.active = true;
+    this.planeType = 'custom';
+    this.planeOrigin.copy(origin);
+    this.planeNormal.copy(normal);
+    this.planeU.copy(uAxis);
+    this.planeV.copy(vAxis);
+    this._customPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, origin);
+    this.segments = [];
+    this._firstPoint = null;
+
+    if (this.planeMesh) {
+      this.scene.remove(this.planeMesh);
+      this.planeMesh.geometry.dispose();
+      this.planeMesh.material.dispose();
+    }
+    const planeGeo = new THREE.PlaneGeometry(50, 50);
+    const planeMat = new THREE.MeshBasicMaterial({
+      color: 0x00aaff, transparent: true, opacity: 0.06, side: THREE.DoubleSide, depthWrite: false
+    });
+    this.planeMesh = new THREE.Mesh(planeGeo, planeMat);
+    const m4 = new THREE.Matrix4().makeBasis(uAxis, vAxis, normal);
+    this.planeMesh.quaternion.setFromRotationMatrix(m4);
+    this.planeMesh.position.copy(origin);
+    this.scene.add(this.planeMesh);
+
+    const gridHelper = new THREE.GridHelper(20, 40, 0x00aaff, 0x00aaff);
+    gridHelper.material.opacity = 0.3;
+    gridHelper.material.transparent = true;
+    gridHelper.quaternion.setFromRotationMatrix(m4);
+    gridHelper.position.copy(origin);
+    this._sketchGroup.add(gridHelper);
+    this._gridHelper = gridHelper;
+  }
+
   setTool(tool) {
     this.currentTool = tool;
     this._firstPoint = null;
@@ -2312,6 +2438,14 @@ class SketchManager {
 
   snap(point) {
     const s = this._snapGrid;
+    if (this.planeType === 'custom') {
+      const rel = point.clone().sub(this.planeOrigin);
+      const u = Math.round(rel.dot(this.planeU) / s) * s;
+      const v = Math.round(rel.dot(this.planeV) / s) * s;
+      return this.planeOrigin.clone()
+        .addScaledVector(this.planeU, u)
+        .addScaledVector(this.planeV, v);
+    }
     return new THREE.Vector3(
       Math.round(point.x / s) * s,
       Math.round(point.y / s) * s,
@@ -2326,19 +2460,24 @@ class SketchManager {
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
 
-    let planeNormal, planePoint;
-    if (this.planeType === 'XY') {
-      planeNormal = new THREE.Vector3(0, 0, 1);
-      planePoint = new THREE.Vector3(0, 0, 0);
-    } else if (this.planeType === 'XZ') {
-      planeNormal = new THREE.Vector3(0, 1, 0);
-      planePoint = new THREE.Vector3(0, 0, 0);
+    let plane;
+    if (this.planeType === 'custom') {
+      plane = this._customPlane;
     } else {
-      planeNormal = new THREE.Vector3(1, 0, 0);
-      planePoint = new THREE.Vector3(0, 0, 0);
+      let planeNormal, planePoint;
+      if (this.planeType === 'XY') {
+        planeNormal = new THREE.Vector3(0, 0, 1);
+        planePoint = new THREE.Vector3(0, 0, 0);
+      } else if (this.planeType === 'XZ') {
+        planeNormal = new THREE.Vector3(0, 1, 0);
+        planePoint = new THREE.Vector3(0, 0, 0);
+      } else {
+        planeNormal = new THREE.Vector3(1, 0, 0);
+        planePoint = new THREE.Vector3(0, 0, 0);
+      }
+      plane = new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, planePoint);
     }
 
-    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, planePoint);
     const point = new THREE.Vector3();
     raycaster.ray.intersectPlane(plane, point);
     return point ? this.snap(point) : null;
@@ -2368,22 +2507,33 @@ class SketchManager {
       } else if (this.currentTool === 'circle') {
         const radius = p1.distanceTo(p2);
         const segs = 32;
-        for (let i = 0; i < segs; i++) {
-          const a1 = (i / segs) * Math.PI * 2;
-          const a2 = ((i+1) / segs) * Math.PI * 2;
-          let pt1 = new THREE.Vector3(), pt2 = new THREE.Vector3();
-          if (this.planeType === 'XY') {
-            pt1.set(p1.x + Math.cos(a1)*radius, p1.y + Math.sin(a1)*radius, 0);
-            pt2.set(p1.x + Math.cos(a2)*radius, p1.y + Math.sin(a2)*radius, 0);
-          } else if (this.planeType === 'XZ') {
-            pt1.set(p1.x + Math.cos(a1)*radius, 0, p1.z + Math.sin(a1)*radius);
-            pt2.set(p1.x + Math.cos(a2)*radius, 0, p1.z + Math.sin(a2)*radius);
-          } else {
-            pt1.set(0, p1.y + Math.cos(a1)*radius, p1.z + Math.sin(a1)*radius);
-            pt2.set(0, p1.y + Math.cos(a2)*radius, p1.z + Math.sin(a2)*radius);
+        if (this.planeType === 'custom') {
+          for (let i = 0; i < segs; i++) {
+            const a1 = (i / segs) * Math.PI * 2;
+            const a2 = ((i+1) / segs) * Math.PI * 2;
+            const pt1 = p1.clone().addScaledVector(this.planeU, Math.cos(a1)*radius).addScaledVector(this.planeV, Math.sin(a1)*radius);
+            const pt2 = p1.clone().addScaledVector(this.planeU, Math.cos(a2)*radius).addScaledVector(this.planeV, Math.sin(a2)*radius);
+            this.segments.push({ type: 'line', p1: pt1, p2: pt2 });
+            this._addSegmentVisual(pt1, pt2);
           }
-          this.segments.push({ type: 'line', p1: pt1, p2: pt2 });
-          this._addSegmentVisual(pt1, pt2);
+        } else {
+          for (let i = 0; i < segs; i++) {
+            const a1 = (i / segs) * Math.PI * 2;
+            const a2 = ((i+1) / segs) * Math.PI * 2;
+            let pt1 = new THREE.Vector3(), pt2 = new THREE.Vector3();
+            if (this.planeType === 'XY') {
+              pt1.set(p1.x + Math.cos(a1)*radius, p1.y + Math.sin(a1)*radius, 0);
+              pt2.set(p1.x + Math.cos(a2)*radius, p1.y + Math.sin(a2)*radius, 0);
+            } else if (this.planeType === 'XZ') {
+              pt1.set(p1.x + Math.cos(a1)*radius, 0, p1.z + Math.sin(a1)*radius);
+              pt2.set(p1.x + Math.cos(a2)*radius, 0, p1.z + Math.sin(a2)*radius);
+            } else {
+              pt1.set(0, p1.y + Math.cos(a1)*radius, p1.z + Math.sin(a1)*radius);
+              pt2.set(0, p1.y + Math.cos(a2)*radius, p1.z + Math.sin(a2)*radius);
+            }
+            this.segments.push({ type: 'line', p1: pt1, p2: pt2 });
+            this._addSegmentVisual(pt1, pt2);
+          }
         }
         this._removePreview();
         this._firstPoint = null;
@@ -2392,6 +2542,19 @@ class SketchManager {
   }
 
   _rectCorners(p1, p2) {
+    if (this.planeType === 'custom') {
+      const rel1 = p1.clone().sub(this.planeOrigin);
+      const rel2 = p2.clone().sub(this.planeOrigin);
+      const u1 = rel1.dot(this.planeU), v1 = rel1.dot(this.planeV);
+      const u2 = rel2.dot(this.planeU), v2 = rel2.dot(this.planeV);
+      const o = this.planeOrigin, U = this.planeU, V = this.planeV;
+      return [
+        o.clone().addScaledVector(U, u1).addScaledVector(V, v1),
+        o.clone().addScaledVector(U, u2).addScaledVector(V, v1),
+        o.clone().addScaledVector(U, u2).addScaledVector(V, v2),
+        o.clone().addScaledVector(U, u1).addScaledVector(V, v2)
+      ];
+    }
     if (this.planeType === 'XY') {
       return [
         new THREE.Vector3(p1.x, p1.y, 0),
@@ -2420,7 +2583,48 @@ class SketchManager {
     if (!this._firstPoint) return;
     const point = this.getPlaneIntersection(event, camera, canvas);
     if (!point) return;
-    this._updatePreview(this._firstPoint, point);
+    if (this.currentTool === 'rect') {
+      this._updateRectPreview(this._firstPoint, point);
+    } else if (this.currentTool === 'circle') {
+      this._updateCirclePreview(this._firstPoint, point);
+    } else {
+      this._updatePreview(this._firstPoint, point);
+    }
+  }
+
+  _updateRectPreview(p1, p2) {
+    this._removePreview();
+    const corners = this._rectCorners(p1, p2);
+    const pts = [...corners, corners[0]];
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    const mat = new THREE.LineBasicMaterial({ color: 0xffaa00, linewidth: 1.5 });
+    this._previewLine = new THREE.Line(geo, mat);
+    this._sketchGroup.add(this._previewLine);
+  }
+
+  _updateCirclePreview(center, edgePt) {
+    this._removePreview();
+    const radius = center.distanceTo(edgePt);
+    const segs = 64;
+    const pts = [];
+    for (let i = 0; i <= segs; i++) {
+      const a = (i / segs) * Math.PI * 2;
+      if (this.planeType === 'custom') {
+        pts.push(center.clone()
+          .addScaledVector(this.planeU, Math.cos(a) * radius)
+          .addScaledVector(this.planeV, Math.sin(a) * radius));
+      } else if (this.planeType === 'XY') {
+        pts.push(new THREE.Vector3(center.x + Math.cos(a)*radius, center.y + Math.sin(a)*radius, center.z));
+      } else if (this.planeType === 'XZ') {
+        pts.push(new THREE.Vector3(center.x + Math.cos(a)*radius, center.y, center.z + Math.sin(a)*radius));
+      } else {
+        pts.push(new THREE.Vector3(center.x, center.y + Math.cos(a)*radius, center.z + Math.sin(a)*radius));
+      }
+    }
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    const mat = new THREE.LineBasicMaterial({ color: 0xffaa00, linewidth: 1.5 });
+    this._previewLine = new THREE.Line(geo, mat);
+    this._sketchGroup.add(this._previewLine);
   }
 
   _addSegmentVisual(p1, p2) {
@@ -2449,6 +2653,12 @@ class SketchManager {
 
   finishSketch() {
     const data = { segments: this.segments.slice(), planeType: this.planeType };
+    if (this.planeType === 'custom') {
+      data.planeOrigin = this.planeOrigin.clone();
+      data.planeNormal = this.planeNormal.clone();
+      data.planeU = this.planeU.clone();
+      data.planeV = this.planeV.clone();
+    }
     this.cancelSketch();
     return data;
   }
@@ -2498,7 +2708,16 @@ class ExtrudeEngine {
     mesh.castShadow = true;
     mesh.receiveShadow = true;
 
-    if (sketchData.planeType === 'XZ') {
+    if (sketchData.planeType === 'custom') {
+      const { planeOrigin, planeU, planeV, planeNormal } = sketchData;
+      const m4 = new THREE.Matrix4().makeBasis(
+        planeU.clone().normalize(),
+        planeV.clone().normalize(),
+        planeNormal.clone().normalize()
+      );
+      mesh.quaternion.setFromRotationMatrix(m4);
+      mesh.position.copy(planeOrigin);
+    } else if (sketchData.planeType === 'XZ') {
       mesh.rotation.x = -Math.PI / 2;
     } else if (sketchData.planeType === 'YZ') {
       mesh.rotation.y = Math.PI / 2;
@@ -2514,10 +2733,21 @@ class ExtrudeEngine {
     const shape = new THREE.Shape();
     const planeType = sketchData.planeType || 'XY';
 
+    let planeOrigin, planeU, planeV;
+    if (planeType === 'custom') {
+      planeOrigin = sketchData.planeOrigin || new THREE.Vector3();
+      planeU = sketchData.planeU || new THREE.Vector3(1, 0, 0);
+      planeV = sketchData.planeV || new THREE.Vector3(0, 1, 0);
+    }
+
     const toXY = (p) => {
       if (planeType === 'XY') return [p.x, p.y];
       if (planeType === 'XZ') return [p.x, p.z];
       if (planeType === 'YZ') return [p.y, p.z];
+      if (planeType === 'custom') {
+        const rel = new THREE.Vector3(p.x, p.y, p.z).sub(planeOrigin);
+        return [rel.dot(planeU), rel.dot(planeV)];
+      }
       return [p.x, p.y];
     };
 
@@ -3112,11 +3342,44 @@ class RibbonUI {
     this._bind('btn-add-hemisphere', () => this.app.addPrimitive('hemisphere'));
     this._bind('btn-add-pyramid', () => this.app.addPrimitive('pyramid'));
 
+    // Box split-button dropdown
+    const boxDropBtn = document.getElementById('btn-add-box-dropdown');
+    const boxDropMenu = document.getElementById('dropdown-box');
+    if (boxDropBtn && boxDropMenu) {
+      boxDropBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const open = boxDropMenu.style.display !== 'none';
+        if (!open) {
+          const r = boxDropBtn.getBoundingClientRect();
+          boxDropMenu.style.left = r.left + 'px';
+          boxDropMenu.style.top = (r.bottom + 3) + 'px';
+        }
+        boxDropMenu.style.display = open ? 'none' : 'block';
+      });
+      boxDropMenu.querySelectorAll('.primitive-dropdown-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+          e.stopPropagation();
+          boxDropMenu.style.display = 'none';
+          const method = item.dataset.method;
+          if (method === 'standard') {
+            this.app.addPrimitive('box');
+          } else {
+            this.app.startBoxBuilder(method);
+            this.activateTab('primitives');
+          }
+        });
+      });
+      document.addEventListener('click', () => {
+        boxDropMenu.style.display = 'none';
+      });
+    }
+
     // Sketch tab
     this._bind('btn-start-sketch', () => {
       const plane = document.getElementById('sketch-plane-select').value;
       this.app.startSketch(plane);
     });
+    this._bind('btn-sketch-on-surface', () => this.app.startSketchOnSurface());
     this._bind('btn-finish-sketch', () => this.app.finishSketch());
     this._bind('btn-sketch-line', () => this.app.setSketchTool('line'));
     this._bind('btn-sketch-rect', () => this.app.setSketchTool('rect'));
@@ -3201,12 +3464,14 @@ class RibbonUI {
 
   setSketchMode(active) {
     const startBtn = document.getElementById('btn-start-sketch');
+    const surfBtn = document.getElementById('btn-sketch-on-surface');
     const finishBtn = document.getElementById('btn-finish-sketch');
     const lineBtn = document.getElementById('btn-sketch-line');
     const rectBtn = document.getElementById('btn-sketch-rect');
     const circBtn = document.getElementById('btn-sketch-circle');
 
     if (startBtn) startBtn.disabled = active;
+    if (surfBtn) surfBtn.disabled = active;
     if (finishBtn) finishBtn.disabled = !active;
     if (lineBtn) lineBtn.disabled = !active;
     if (rectBtn) rectBtn.disabled = !active;
@@ -3289,6 +3554,386 @@ function showModal(title, fields, onOk) {
 }
 
 // ============================================================
+// BOX BUILDER  — interactive box construction tool
+// ============================================================
+class BoxBuilder {
+  constructor(app) {
+    this.app = app;
+    this.active = false;
+    this.method = 'diagonal'; // 'diagonal' | 'sides'
+    // States:
+    //   diagonal: 'p1' → 'p2' → 'waiting_enter' → 'height' → done
+    //   sides:    'p1' → 'p2' → 'p3' → 'height' → done
+    this.state = 'idle';
+    this.p1 = null;
+    this.p2 = null;
+    this.p3 = null;
+    this.height = 1;
+    this._previewGroup = new THREE.Group();
+    this._previewGroup.renderOrder = 990;
+    this.app.sceneManager.scene.add(this._previewGroup);
+  }
+
+  // ---- public API ----
+
+  start(method) {
+    this.cancel();
+    this.active = true;
+    this.method = method;
+    this.state = 'p1';
+    this.p1 = null;
+    this.p2 = null;
+    this.p3 = null;
+    this.height = 1;
+    this.app.boxBuildMode = true;
+
+    document.getElementById('boxbuilder-indicator').classList.add('active');
+
+    const msg = method === 'diagonal'
+      ? 'Кликните первую точку диагонали основания'
+      : 'Кликните начало первой стороны основания';
+    this.app.statusBar.setMode('Построение куба');
+    this.app.statusBar.setMessage(msg, 0);
+  }
+
+  cancel() {
+    this.active = false;
+    this.state = 'idle';
+    this._clearPreview();
+    this.app.boxBuildMode = false;
+    document.getElementById('boxbuilder-indicator').classList.remove('active');
+  }
+
+  onClick(event) {
+    if (!this.active) return;
+    const groundPt = this._getGroundPoint(event);
+    if (!groundPt) return;
+
+    if (this.state === 'p1') {
+      this.p1 = groundPt;
+      this.state = 'p2';
+      const msg = this.method === 'diagonal'
+        ? 'Кликните вторую точку диагонали основания'
+        : 'Кликните конец первой стороны';
+      this.app.statusBar.setMessage(msg, 0);
+
+    } else if (this.state === 'p2') {
+      this.p2 = groundPt;
+      if (this.method === 'diagonal') {
+        this.state = 'waiting_enter';
+        this._showBaseOutline();
+        this.app.statusBar.setMessage('Основание зафиксировано. Нажмите Enter для задания высоты (ESC — отмена)', 0);
+      } else {
+        this.state = 'p3';
+        this.app.statusBar.setMessage('Укажите ширину: кликните третью точку', 0);
+      }
+
+    } else if (this.state === 'p3') {
+      this.p3 = groundPt;
+      this.state = 'height';
+      this.app.statusBar.setMessage('Двигайте мышь вверх/вниз для высоты, кликните для завершения', 0);
+
+    } else if (this.state === 'height') {
+      this.height = this._getHeightFromEvent(event);
+      this._finalizeBox();
+    }
+  }
+
+  onMouseMove(event) {
+    if (!this.active) return;
+
+    if (this.state === 'p2') {
+      const pt = this._getGroundPoint(event);
+      if (pt) this._previewBase(pt);
+
+    } else if (this.state === 'p3') {
+      const pt = this._getGroundPoint(event);
+      if (pt) this._previewRectSides(pt);
+
+    } else if (this.state === 'height') {
+      const h = this._getHeightFromEvent(event);
+      this.height = h;
+      this._previewBox(h);
+    }
+  }
+
+  onKeyDown(event) {
+    if (!this.active) return;
+    if (event.key === 'Escape') {
+      this.cancel();
+      this.app.statusBar.setMessage('Построение куба отменено', 2000);
+      this.app.statusBar.setMode('Просмотр');
+    } else if (event.key === 'Enter') {
+      if (this.state === 'waiting_enter') {
+        this.state = 'height';
+        this.app.statusBar.setMessage('Двигайте мышь вверх/вниз для высоты, кликните для завершения', 0);
+      } else if (this.state === 'height') {
+        this._finalizeBox();
+      }
+    }
+  }
+
+  // ---- private helpers ----
+
+  _snap(v) {
+    const s = 0.5;
+    return new THREE.Vector3(
+      Math.round(v.x / s) * s,
+      0,
+      Math.round(v.z / s) * s
+    );
+  }
+
+  _getGroundPoint(event) {
+    const canvas = document.getElementById('main-canvas');
+    const rect = canvas.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(new THREE.Vector2(x, y), this.app.camera);
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const pt = new THREE.Vector3();
+    const hit = ray.ray.intersectPlane(plane, pt);
+    return hit ? this._snap(pt) : null;
+  }
+
+  _getHeightFromEvent(event) {
+    const canvas = document.getElementById('main-canvas');
+    const rect = canvas.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(new THREE.Vector2(x, y), this.app.camera);
+
+    // Build a vertical plane facing the camera (projected onto XZ)
+    const camDir = new THREE.Vector3();
+    this.app.camera.getWorldDirection(camDir);
+    camDir.y = 0;
+    if (camDir.lengthSq() < 0.0001) camDir.set(1, 0, 0);
+    camDir.normalize();
+
+    const baseCenter = this._computeBaseCenter();
+    const heightPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(camDir, baseCenter);
+    const pt = new THREE.Vector3();
+    const hit = ray.ray.intersectPlane(heightPlane, pt);
+    if (!hit) return this.height;
+    const s = 0.25;
+    return Math.max(0.01, Math.round(pt.y / s) * s);
+  }
+
+  _computeBaseCenter() {
+    if (this.method === 'diagonal' && this.p1 && this.p2) {
+      return new THREE.Vector3(
+        (this.p1.x + this.p2.x) / 2, 0, (this.p1.z + this.p2.z) / 2
+      );
+    }
+    if (this.method === 'sides' && this.p1 && this.p2) {
+      const dir = this.p2.clone().sub(this.p1).normalize();
+      const perp = new THREE.Vector3(-dir.z, 0, dir.x);
+      const w = this.p3
+        ? this.p3.clone().sub(this.p1).dot(perp)
+        : 1;
+      return this.p1.clone()
+        .addScaledVector(dir, this.p2.distanceTo(this.p1) / 2)
+        .addScaledVector(perp, w / 2);
+    }
+    return new THREE.Vector3();
+  }
+
+  _clearPreview() {
+    const dispose = (obj) => {
+      obj.children.slice().forEach(c => dispose(c));
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) {
+        if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+        else obj.material.dispose();
+      }
+    };
+    while (this._previewGroup.children.length > 0) {
+      const child = this._previewGroup.children[0];
+      dispose(child);
+      this._previewGroup.remove(child);
+    }
+  }
+
+  _addLine(points, color) {
+    const geo = new THREE.BufferGeometry().setFromPoints(points);
+    const mat = new THREE.LineBasicMaterial({ color, depthTest: false });
+    const line = new THREE.Line(geo, mat);
+    line.renderOrder = 990;
+    this._previewGroup.add(line);
+  }
+
+  // Show first-side line from p1 to cursor (diagonal or sides mode p2 state)
+  _previewBase(cursorPt) {
+    this._clearPreview();
+    if (!this.p1) return;
+
+    const y = 0.01;
+    if (this.method === 'diagonal') {
+      const p1 = this.p1, p2 = cursorPt;
+      // Rectangle outline
+      this._addLine([
+        new THREE.Vector3(p1.x, y, p1.z),
+        new THREE.Vector3(p2.x, y, p1.z),
+        new THREE.Vector3(p2.x, y, p2.z),
+        new THREE.Vector3(p1.x, y, p2.z),
+        new THREE.Vector3(p1.x, y, p1.z)
+      ], 0xffaa00);
+      // Diagonal dashed
+      this._addLine([
+        new THREE.Vector3(p1.x, y + 0.01, p1.z),
+        new THREE.Vector3(p2.x, y + 0.01, p2.z)
+      ], 0xff6600);
+    } else {
+      // First side line
+      this._addLine([
+        new THREE.Vector3(this.p1.x, y, this.p1.z),
+        new THREE.Vector3(cursorPt.x, y, cursorPt.z)
+      ], 0xffaa00);
+    }
+  }
+
+  // Show second side (perpendicular), p1+p2 fixed, cursor sets width
+  _previewRectSides(cursorPt) {
+    this._clearPreview();
+    if (!this.p1 || !this.p2) return;
+
+    const dir = this.p2.clone().sub(this.p1);
+    const dirN = dir.clone().normalize();
+    const perp = new THREE.Vector3(-dirN.z, 0, dirN.x);
+    const w = cursorPt.clone().sub(this.p1).dot(perp);
+
+    const y = 0.01;
+    const c1 = new THREE.Vector3(this.p1.x, y, this.p1.z);
+    const c2 = new THREE.Vector3(this.p2.x, y, this.p2.z);
+    const c3 = c2.clone().addScaledVector(perp, w);
+    c3.y = y;
+    const c4 = c1.clone().addScaledVector(perp, w);
+    c4.y = y;
+
+    this._addLine([c1, c2, c3, c4, c1], 0xffaa00);
+  }
+
+  // Show base outline only (for diagonal waiting_enter state)
+  _showBaseOutline() {
+    this._clearPreview();
+    if (!this.p1 || !this.p2) return;
+    const y = 0.01;
+    const p1 = this.p1, p2 = this.p2;
+    this._addLine([
+      new THREE.Vector3(p1.x, y, p1.z),
+      new THREE.Vector3(p2.x, y, p1.z),
+      new THREE.Vector3(p2.x, y, p2.z),
+      new THREE.Vector3(p1.x, y, p2.z),
+      new THREE.Vector3(p1.x, y, p1.z)
+    ], 0x00cc66);
+  }
+
+  // Show full box preview with given height
+  _previewBox(height) {
+    this._clearPreview();
+
+    let geo, position, rotY = 0;
+
+    if (this.method === 'diagonal') {
+      const w = Math.abs(this.p2.x - this.p1.x) || 0.01;
+      const d = Math.abs(this.p2.z - this.p1.z) || 0.01;
+      geo = new THREE.BoxGeometry(w, height, d);
+      position = new THREE.Vector3(
+        (this.p1.x + this.p2.x) / 2,
+        height / 2,
+        (this.p1.z + this.p2.z) / 2
+      );
+    } else {
+      const dir = this.p2.clone().sub(this.p1);
+      const len = dir.length() || 0.01;
+      const dirN = dir.clone().normalize();
+      const perp = new THREE.Vector3(-dirN.z, 0, dirN.x);
+      const w = this.p3.clone().sub(this.p1).dot(perp);
+      const absW = Math.abs(w) || 0.01;
+      const center = this.p1.clone()
+        .addScaledVector(dirN, len / 2)
+        .addScaledVector(perp, w / 2);
+      geo = new THREE.BoxGeometry(len, height, absW);
+      rotY = -Math.atan2(dirN.z, dirN.x);
+      position = new THREE.Vector3(center.x, height / 2, center.z);
+    }
+
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x5588cc, transparent: true, opacity: 0.35, depthWrite: false
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.y = rotY;
+    mesh.position.copy(position);
+    mesh.renderOrder = 991;
+
+    const edges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(geo),
+      new THREE.LineBasicMaterial({ color: 0x0055cc, depthTest: false })
+    );
+    edges.renderOrder = 992;
+    mesh.add(edges);
+
+    this._previewGroup.add(mesh);
+  }
+
+  _finalizeBox() {
+    let mesh, params;
+
+    if (this.method === 'diagonal') {
+      const w = Math.abs(this.p2.x - this.p1.x) || 0.1;
+      const d = Math.abs(this.p2.z - this.p1.z) || 0.1;
+      params = { width: w, height: this.height, depth: d };
+      mesh = PrimitiveFactory.create('box', params);
+      mesh.position.set(
+        (this.p1.x + this.p2.x) / 2,
+        this.height / 2,
+        (this.p1.z + this.p2.z) / 2
+      );
+    } else {
+      const dir = this.p2.clone().sub(this.p1);
+      const len = dir.length() || 0.1;
+      const dirN = dir.clone().normalize();
+      const perp = new THREE.Vector3(-dirN.z, 0, dirN.x);
+      const w = this.p3.clone().sub(this.p1).dot(perp);
+      const absW = Math.abs(w) || 0.1;
+      const center = this.p1.clone()
+        .addScaledVector(dirN, len / 2)
+        .addScaledVector(perp, w / 2);
+      params = { width: len, height: this.height, depth: absW };
+      mesh = PrimitiveFactory.create('box', params);
+      mesh.rotation.y = -Math.atan2(dirN.z, dirN.x);
+      mesh.position.set(center.x, this.height / 2, center.z);
+    }
+
+    const app = this.app;
+    const id = app.sceneManager.nextId++;
+    const name = PrimitiveFactory.getTypeName('box') + ' ' + id;
+    const sceneObj = {
+      id, name, type: 'box', kind: 'primitive',
+      mesh, params,
+      materialParams: MaterialLibrary.getParams(mesh),
+      visible: true, locked: false, children: [], parent: null
+    };
+
+    app.sceneManager.addObject(sceneObj);
+    app.operationTree.add({ type: 'addPrimitive', params: { type: 'box', params }, objectId: id });
+    this.cancel();
+    app._refreshUI();
+    app.historyManager.push(app.sceneManager.serialize());
+    app.selectionManager.clearSelection();
+    app.selectionManager.select(id);
+    app.transformTool.attach(mesh);
+    app.propertiesPanel.update(sceneObj);
+    app.modelTreeUI.setSelected([id]);
+    app.statusBar.setSelected(1);
+    app.statusBar.setMode('Перемещение');
+    app.statusBar.setMessage(`Добавлен: ${name}`, 2000);
+  }
+}
+
+// ============================================================
 // MAIN APP CLASS
 // ============================================================
 class App {
@@ -3319,6 +3964,10 @@ class App {
     this._lastSketchData = null;
     this._transformMode = 'translate';
     this._copyBuffer = [];
+    this.boxBuildMode = false;
+    this.boxBuilder = null;
+    this.surfacePickMode = false;
+    this._lastSketchRegionId = null;
   }
 
   init() {
@@ -3368,6 +4017,7 @@ class App {
     this.sketchManager = new SketchManager(this.sceneManager.scene);
     this.exportManager = new ExportManager();
     this.statusBar = new StatusBar();
+    this.boxBuilder = new BoxBuilder(this);
 
     // Transform tool
     this.transformTool = new TransformTool(this.camera, this.renderer, this.cameraController.controls);
@@ -3495,6 +4145,88 @@ class App {
     return sceneObj;
   }
 
+  startBoxBuilder(method) {
+    if (this.boxBuildMode) this.cancelBoxBuilder();
+    if (this.sketchMode) this.cancelSketch();
+    this.transformTool.detach();
+    this.selectionManager.clearSelection();
+    this.propertiesPanel.clear();
+    this.modelTreeUI.setSelected([]);
+    this.statusBar.setSelected(0);
+    this.boxBuilder.start(method);
+  }
+
+  cancelBoxBuilder() {
+    this.boxBuilder.cancel();
+  }
+
+  startSketchOnSurface() {
+    if (this.sketchMode) this.cancelSketch();
+    if (this.boxBuildMode) this.cancelBoxBuilder();
+    if (this.surfacePickMode) {
+      // Toggle off
+      this.surfacePickMode = false;
+      document.getElementById('main-canvas').style.cursor = '';
+      this.statusBar.setMode('Просмотр');
+      this.statusBar.setMessage('', 0);
+      return;
+    }
+    this.surfacePickMode = true;
+    document.getElementById('main-canvas').style.cursor = 'crosshair';
+    this.statusBar.setMode('Выбор поверхности');
+    this.statusBar.setMessage('Кликните на поверхность объекта для создания эскиза (ESC — отмена)', 0);
+  }
+
+  _pickSurface(event) {
+    const canvas = document.getElementById('main-canvas');
+    const rect = canvas.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(new THREE.Vector2(x, y), this.camera);
+
+    const meshes = this.sceneManager.getAllObjects()
+      .filter(o => o.mesh && o.mesh.visible && o.kind !== 'sketch-region')
+      .map(o => o.mesh);
+
+    const intersects = raycaster.intersectObjects(meshes, false);
+    if (intersects.length > 0) {
+      const hit = intersects[0];
+      if (!hit.face) { this.statusBar.setMessage('Нажмите на поверхность объекта', 2000); return; }
+      const faceNormal = hit.face.normal.clone();
+      faceNormal.transformDirection(hit.object.matrixWorld);
+      const origin = hit.point.clone();
+
+      // Build coordinate frame from normal
+      const worldUp = new THREE.Vector3(0, 1, 0);
+      let right;
+      if (Math.abs(faceNormal.dot(worldUp)) > 0.99) {
+        right = new THREE.Vector3().crossVectors(new THREE.Vector3(1, 0, 0), faceNormal);
+        if (right.lengthSq() < 0.001) right.crossVectors(new THREE.Vector3(0, 0, 1), faceNormal);
+        right.normalize();
+      } else {
+        right = new THREE.Vector3().crossVectors(worldUp, faceNormal).normalize();
+      }
+      const up = new THREE.Vector3().crossVectors(faceNormal, right).normalize();
+
+      this.surfacePickMode = false;
+      canvas.style.cursor = '';
+      this.sketchMode = true;
+      this.sketchManager.startSketchOnSurface(origin, faceNormal, right, up);
+      this.ribbonUI.setSketchMode(true);
+      this.ribbonUI.activateTab('sketch');
+      this.setSketchTool('line');
+      this.statusBar.setMode('Эскиз на поверхности');
+      this.statusBar.setMessage('Эскиз на поверхности начат. Рисуйте контур. Tab или ✅ — завершить.', 3000);
+      this.transformTool.detach();
+      this.selectionManager.clearSelection();
+      this.propertiesPanel.clear();
+      this.modelTreeUI.setSelected([]);
+    } else {
+      this.statusBar.setMessage('Нажмите на поверхность объекта', 2000);
+    }
+  }
+
   startSketch(planeType) {
     if (this.sketchMode) this.cancelSketch();
     this.sketchMode = true;
@@ -3529,10 +4261,52 @@ class App {
 
     if (sketchData && sketchData.segments && sketchData.segments.length > 0) {
       this._lastSketchData = sketchData;
-      this.statusBar.setMessage('Эскиз завершён. Используйте "Выдавить" или "Вращать".', 4000);
+      // Create pickable translucent sketch-region
+      const regionMesh = this._createSketchRegion(sketchData);
+      if (regionMesh) {
+        const rid = this.sceneManager.nextId++;
+        const regionObj = {
+          id: rid, name: 'Эскиз ' + rid, type: 'sketch-region', kind: 'sketch-region',
+          mesh: regionMesh, sketchData,
+          visible: true, locked: false, children: [], parent: null, materialParams: {}
+        };
+        this.sceneManager.addObject(regionObj);
+        this._lastSketchRegionId = rid;
+        this._refreshUI();
+      }
+      this.statusBar.setMessage('Эскиз завершён. Кликните область и нажмите "Выдавить".', 4000);
     } else {
       this._lastSketchData = null;
       this.statusBar.setMessage('Эскиз пустой — отменён.', 2000);
+    }
+  }
+
+  _createSketchRegion(sketchData) {
+    try {
+      const shape = ExtrudeEngine._buildShape(sketchData);
+      if (!shape) return null;
+      const geo = new THREE.ShapeGeometry(shape);
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0x4499ff, transparent: true, opacity: 0.28,
+        side: THREE.DoubleSide, depthWrite: false
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      if (sketchData.planeType === 'custom') {
+        const { planeOrigin, planeU, planeV, planeNormal } = sketchData;
+        const m4 = new THREE.Matrix4().makeBasis(
+          planeU.clone().normalize(), planeV.clone().normalize(), planeNormal.clone().normalize()
+        );
+        mesh.quaternion.setFromRotationMatrix(m4);
+        mesh.position.copy(planeOrigin);
+      } else if (sketchData.planeType === 'XZ') {
+        mesh.rotation.x = -Math.PI / 2;
+      } else if (sketchData.planeType === 'YZ') {
+        mesh.rotation.y = Math.PI / 2;
+      }
+      return mesh;
+    } catch (e) {
+      console.warn('Sketch region build error:', e);
+      return null;
     }
   }
 
@@ -3545,8 +4319,20 @@ class App {
   }
 
   showExtrudeDialog() {
-    if (!this._lastSketchData || this._lastSketchData.segments.length === 0) {
-      this.statusBar.setMessage('Сначала создайте и завершите эскиз.', 3000);
+    // Prefer selected sketch-region; fall back to _lastSketchData
+    const sel = this.selectionManager.getSelected();
+    let sketchData = null;
+    let regionId = null;
+    if (sel.length === 1) {
+      const obj = this.sceneManager.getObject(sel[0]);
+      if (obj && obj.kind === 'sketch-region' && obj.sketchData) {
+        sketchData = obj.sketchData;
+        regionId = obj.id;
+      }
+    }
+    if (!sketchData) sketchData = this._lastSketchData;
+    if (!sketchData || sketchData.segments.length === 0) {
+      this.statusBar.setMessage('Создайте эскиз, завершите его и кликните область.', 3000);
       return;
     }
     showModal('Выдавливание', [
@@ -3554,14 +4340,25 @@ class App {
       { id: 'bevel', label: 'Скругление:', type: 'checkbox', value: false },
       { id: 'bevelThickness', label: 'Толщина скругления:', type: 'number', value: 0.1, step: 0.01, min: 0 }
     ], (vals) => {
-      this.extrudeSketch(vals.depth, vals.bevel, vals.bevelThickness);
+      this.extrudeSketch(vals.depth, vals.bevel, vals.bevelThickness, sketchData, regionId);
     });
   }
 
-  extrudeSketch(depth = 2, bevelEnabled = false, bevelThickness = 0.1) {
-    if (!this._lastSketchData) return;
-    const mesh = ExtrudeEngine.extrude(this._lastSketchData, depth, bevelEnabled, bevelThickness);
+  extrudeSketch(depth = 2, bevelEnabled = false, bevelThickness = 0.1, sketchData = null, regionId = null) {
+    const data = sketchData || this._lastSketchData;
+    if (!data) return;
+    const mesh = ExtrudeEngine.extrude(data, depth, bevelEnabled, bevelThickness);
     if (!mesh) { this.statusBar.setMessage('Ошибка выдавливания. Проверьте эскиз.', 3000); return; }
+
+    // Remove the sketch-region
+    if (regionId) {
+      this.sceneManager.removeObject(regionId);
+      if (this._lastSketchRegionId === regionId) this._lastSketchRegionId = null;
+    } else if (this._lastSketchRegionId) {
+      this.sceneManager.removeObject(this._lastSketchRegionId);
+      this._lastSketchRegionId = null;
+    }
+    if (data === this._lastSketchData) this._lastSketchData = null;
 
     const id = this.sceneManager.nextId++;
     const name = 'Выдавливание ' + id;
@@ -3572,7 +4369,6 @@ class App {
       visible: true, locked: false, children: [], parent: null
     };
     this.sceneManager.addObject(sceneObj);
-    this._lastSketchData = null;
     this._refreshUI();
     this.historyManager.push(this.sceneManager.serialize());
     this.statusBar.setMessage('Выдавливание создано: ' + name, 2000);
@@ -4015,6 +4811,16 @@ class App {
   }
 
   onClick(event) {
+    if (this.surfacePickMode) {
+      this._pickSurface(event);
+      return;
+    }
+
+    if (this.boxBuildMode) {
+      this.boxBuilder.onClick(event);
+      return;
+    }
+
     if (this.sketchMode) {
       this.sketchManager.onClick(event, this.camera, document.getElementById('main-canvas'));
       return;
@@ -4051,6 +4857,13 @@ class App {
   }
 
   onMouseMove(event) {
+    if (this.boxBuildMode) {
+      this.boxBuilder.onMouseMove(event);
+      const pt = this.boxBuilder._getGroundPoint(event);
+      if (pt) this.statusBar.setCoords(pt.x, pt.y, pt.z);
+      return;
+    }
+
     if (this.sketchMode) {
       this.sketchManager.onMouseMove(event, this.camera, document.getElementById('main-canvas'));
       const pt = this.sketchManager.getPlaneIntersection(event, this.camera, document.getElementById('main-canvas'));
@@ -4091,6 +4904,11 @@ class App {
     if (this.sketchMode) {
       if (key === 'escape') { this.cancelSketch(); }
       if (key === 'tab') { event.preventDefault(); this.finishSketch(); }
+      return;
+    }
+
+    if (this.boxBuildMode) {
+      this.boxBuilder.onKeyDown(event);
       return;
     }
 
@@ -4138,12 +4956,19 @@ class App {
         }
         break;
       case 'escape':
-        this.selectionManager.clearSelection();
-        this.transformTool.detach();
-        this.propertiesPanel.clear();
-        this.modelTreeUI.setSelected([]);
-        this.statusBar.setSelected(0);
-        this.statusBar.setMode('Просмотр');
+        if (this.surfacePickMode) {
+          this.surfacePickMode = false;
+          document.getElementById('main-canvas').style.cursor = '';
+          this.statusBar.setMode('Просмотр');
+          this.statusBar.setMessage('Выбор поверхности отменён', 2000);
+        } else {
+          this.selectionManager.clearSelection();
+          this.transformTool.detach();
+          this.propertiesPanel.clear();
+          this.modelTreeUI.setSelected([]);
+          this.statusBar.setSelected(0);
+          this.statusBar.setMode('Просмотр');
+        }
         break;
     }
   }
@@ -4262,12 +5087,18 @@ class App {
       if (!confirm('Создать новую сцену? Несохранённые данные будут потеряны.')) return;
     }
     if (this.sketchMode) this.cancelSketch();
+    if (this.boxBuildMode) this.cancelBoxBuilder();
+    if (this.surfacePickMode) {
+      this.surfacePickMode = false;
+      document.getElementById('main-canvas').style.cursor = '';
+    }
     this.selectionManager.clearSelection();
     this.transformTool.detach();
     this.sceneManager.clear();
     this.operationTree.clear();
     this.historyManager.clear();
     this._lastSketchData = null;
+    this._lastSketchRegionId = null;
     this._refreshUI();
     this.propertiesPanel.clear();
     this.historyManager.push(this.sceneManager.serialize());
@@ -4300,6 +5131,11 @@ class App {
         try {
           const data = JSON.parse(ev.target.result);
           if (this.sketchMode) this.cancelSketch();
+          if (this.boxBuildMode) this.cancelBoxBuilder();
+          if (this.surfacePickMode) {
+            this.surfacePickMode = false;
+            document.getElementById('main-canvas').style.cursor = '';
+          }
           this.selectionManager.clearSelection();
           this.transformTool.detach();
           this.sceneManager.deserialize(data);
