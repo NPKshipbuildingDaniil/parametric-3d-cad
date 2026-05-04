@@ -2229,16 +2229,16 @@ class BooleanEngine {
 
   static subtract(meshA, meshB, statusCallback) {
     if (statusCallback) {
-      statusCallback('CSG требует дополнительной библиотеки, выполнено объединение');
+      statusCallback('Вычитание CSG недоступно без CSG-библиотеки. Операция отменена.');
     }
-    return BooleanEngine.union(meshA, meshB);
+    return null;
   }
 
   static intersect(meshA, meshB, statusCallback) {
     if (statusCallback) {
-      statusCallback('CSG требует дополнительной библиотеки, выполнено объединение');
+      statusCallback('Пересечение CSG недоступно без CSG-библиотеки. Операция отменена.');
     }
-    return BooleanEngine.union(meshA, meshB);
+    return null;
   }
 }
 
@@ -2957,6 +2957,7 @@ class App {
     this.axesVisible = true;
     this._lastSketchData = null;
     this._transformMode = 'translate';
+    this._copyBuffer = [];
   }
 
   init() {
@@ -3785,8 +3786,6 @@ class App {
         break;
     }
   }
-
-  _copyBuffer = [];
 
   _copySelected() {
     const sel = this.selectionManager.getSelected();
