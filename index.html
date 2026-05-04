@@ -727,7 +727,7 @@ input[type="color"].ribbon-color {
   left: 50%;
   transform: translateX(-50%);
   background: #333;
-  color: var(--text);
+  color: #ffffff;
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 11px;
@@ -1638,13 +1638,13 @@ class SceneManager {
   }
 
   _setupGrid() {
-    this.gridFine = new THREE.GridHelper(200, 200, 0x444444, 0x444444);
-    this.gridFine.material.opacity = 0.5;
+    this.gridFine = new THREE.GridHelper(200, 200, 0xbbbbbb, 0xbbbbbb);
+    this.gridFine.material.opacity = 0.6;
     this.gridFine.material.transparent = true;
     this.scene.add(this.gridFine);
 
-    this.gridCoarse = new THREE.GridHelper(200, 20, 0x666666, 0x666666);
-    this.gridCoarse.material.opacity = 0.8;
+    this.gridCoarse = new THREE.GridHelper(200, 20, 0x999999, 0x999999);
+    this.gridCoarse.material.opacity = 0.9;
     this.gridCoarse.material.transparent = true;
     this.scene.add(this.gridCoarse);
 
