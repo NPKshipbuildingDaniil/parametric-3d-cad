@@ -789,14 +789,12 @@ input[type="number"].props-input::-webkit-outer-spin-button {
 }
 
 .primitive-dropdown {
-  position: absolute;
-  top: calc(100% + 3px);
-  left: 0;
+  position: fixed;
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 6px;
-  box-shadow: 0 6px 20px rgba(0,0,0,0.18);
-  z-index: 600;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.22);
+  z-index: 2000;
   min-width: 168px;
   overflow: hidden;
 }
@@ -964,8 +962,11 @@ input[type="number"].props-input::-webkit-outer-spin-button {
               <option value="XZ">Плоскость XZ</option>
               <option value="YZ">Плоскость YZ</option>
             </select>
-            <button class="btn btn-large" id="btn-start-sketch" data-tooltip="Начать эскиз">
+            <button class="btn btn-large" id="btn-start-sketch" data-tooltip="Начать эскиз на стандартной плоскости">
               <span class="btn-icon">✏️</span>Начать
+            </button>
+            <button class="btn btn-large" id="btn-sketch-on-surface" data-tooltip="Создать эскиз на поверхности объекта">
+              <span class="btn-icon">📐</span>На поверхности
             </button>
             <button class="btn btn-large" id="btn-finish-sketch" data-tooltip="Завершить эскиз" disabled>
               <span class="btn-icon">✅</span>Завершить
@@ -2344,11 +2345,18 @@ class SketchManager {
     this._firstPoint = null;
     this.currentTool = 'line';
     this._snapGrid = 0.5;
+    // Custom plane support (for sketch-on-surface)
+    this.planeOrigin = new THREE.Vector3();
+    this.planeNormal = new THREE.Vector3(0, 0, 1);
+    this.planeU = new THREE.Vector3(1, 0, 0);
+    this.planeV = new THREE.Vector3(0, 1, 0);
+    this._customPlane = null;
   }
 
   startSketch(planeType) {
     this.active = true;
     this.planeType = planeType;
+    this._customPlane = null;
     this.segments = [];
     this._firstPoint = null;
 
@@ -2387,6 +2395,41 @@ class SketchManager {
     this._gridHelper = gridHelper;
   }
 
+  startSketchOnSurface(origin, normal, uAxis, vAxis) {
+    this.active = true;
+    this.planeType = 'custom';
+    this.planeOrigin.copy(origin);
+    this.planeNormal.copy(normal);
+    this.planeU.copy(uAxis);
+    this.planeV.copy(vAxis);
+    this._customPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, origin);
+    this.segments = [];
+    this._firstPoint = null;
+
+    if (this.planeMesh) {
+      this.scene.remove(this.planeMesh);
+      this.planeMesh.geometry.dispose();
+      this.planeMesh.material.dispose();
+    }
+    const planeGeo = new THREE.PlaneGeometry(50, 50);
+    const planeMat = new THREE.MeshBasicMaterial({
+      color: 0x00aaff, transparent: true, opacity: 0.06, side: THREE.DoubleSide, depthWrite: false
+    });
+    this.planeMesh = new THREE.Mesh(planeGeo, planeMat);
+    const m4 = new THREE.Matrix4().makeBasis(uAxis, vAxis, normal);
+    this.planeMesh.quaternion.setFromRotationMatrix(m4);
+    this.planeMesh.position.copy(origin);
+    this.scene.add(this.planeMesh);
+
+    const gridHelper = new THREE.GridHelper(20, 40, 0x00aaff, 0x00aaff);
+    gridHelper.material.opacity = 0.3;
+    gridHelper.material.transparent = true;
+    gridHelper.quaternion.setFromRotationMatrix(m4);
+    gridHelper.position.copy(origin);
+    this._sketchGroup.add(gridHelper);
+    this._gridHelper = gridHelper;
+  }
+
   setTool(tool) {
     this.currentTool = tool;
     this._firstPoint = null;
@@ -2395,6 +2438,14 @@ class SketchManager {
 
   snap(point) {
     const s = this._snapGrid;
+    if (this.planeType === 'custom') {
+      const rel = point.clone().sub(this.planeOrigin);
+      const u = Math.round(rel.dot(this.planeU) / s) * s;
+      const v = Math.round(rel.dot(this.planeV) / s) * s;
+      return this.planeOrigin.clone()
+        .addScaledVector(this.planeU, u)
+        .addScaledVector(this.planeV, v);
+    }
     return new THREE.Vector3(
       Math.round(point.x / s) * s,
       Math.round(point.y / s) * s,
@@ -2409,19 +2460,24 @@ class SketchManager {
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
 
-    let planeNormal, planePoint;
-    if (this.planeType === 'XY') {
-      planeNormal = new THREE.Vector3(0, 0, 1);
-      planePoint = new THREE.Vector3(0, 0, 0);
-    } else if (this.planeType === 'XZ') {
-      planeNormal = new THREE.Vector3(0, 1, 0);
-      planePoint = new THREE.Vector3(0, 0, 0);
+    let plane;
+    if (this.planeType === 'custom') {
+      plane = this._customPlane;
     } else {
-      planeNormal = new THREE.Vector3(1, 0, 0);
-      planePoint = new THREE.Vector3(0, 0, 0);
+      let planeNormal, planePoint;
+      if (this.planeType === 'XY') {
+        planeNormal = new THREE.Vector3(0, 0, 1);
+        planePoint = new THREE.Vector3(0, 0, 0);
+      } else if (this.planeType === 'XZ') {
+        planeNormal = new THREE.Vector3(0, 1, 0);
+        planePoint = new THREE.Vector3(0, 0, 0);
+      } else {
+        planeNormal = new THREE.Vector3(1, 0, 0);
+        planePoint = new THREE.Vector3(0, 0, 0);
+      }
+      plane = new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, planePoint);
     }
 
-    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, planePoint);
     const point = new THREE.Vector3();
     raycaster.ray.intersectPlane(plane, point);
     return point ? this.snap(point) : null;
@@ -2451,22 +2507,33 @@ class SketchManager {
       } else if (this.currentTool === 'circle') {
         const radius = p1.distanceTo(p2);
         const segs = 32;
-        for (let i = 0; i < segs; i++) {
-          const a1 = (i / segs) * Math.PI * 2;
-          const a2 = ((i+1) / segs) * Math.PI * 2;
-          let pt1 = new THREE.Vector3(), pt2 = new THREE.Vector3();
-          if (this.planeType === 'XY') {
-            pt1.set(p1.x + Math.cos(a1)*radius, p1.y + Math.sin(a1)*radius, 0);
-            pt2.set(p1.x + Math.cos(a2)*radius, p1.y + Math.sin(a2)*radius, 0);
-          } else if (this.planeType === 'XZ') {
-            pt1.set(p1.x + Math.cos(a1)*radius, 0, p1.z + Math.sin(a1)*radius);
-            pt2.set(p1.x + Math.cos(a2)*radius, 0, p1.z + Math.sin(a2)*radius);
-          } else {
-            pt1.set(0, p1.y + Math.cos(a1)*radius, p1.z + Math.sin(a1)*radius);
-            pt2.set(0, p1.y + Math.cos(a2)*radius, p1.z + Math.sin(a2)*radius);
+        if (this.planeType === 'custom') {
+          for (let i = 0; i < segs; i++) {
+            const a1 = (i / segs) * Math.PI * 2;
+            const a2 = ((i+1) / segs) * Math.PI * 2;
+            const pt1 = p1.clone().addScaledVector(this.planeU, Math.cos(a1)*radius).addScaledVector(this.planeV, Math.sin(a1)*radius);
+            const pt2 = p1.clone().addScaledVector(this.planeU, Math.cos(a2)*radius).addScaledVector(this.planeV, Math.sin(a2)*radius);
+            this.segments.push({ type: 'line', p1: pt1, p2: pt2 });
+            this._addSegmentVisual(pt1, pt2);
           }
-          this.segments.push({ type: 'line', p1: pt1, p2: pt2 });
-          this._addSegmentVisual(pt1, pt2);
+        } else {
+          for (let i = 0; i < segs; i++) {
+            const a1 = (i / segs) * Math.PI * 2;
+            const a2 = ((i+1) / segs) * Math.PI * 2;
+            let pt1 = new THREE.Vector3(), pt2 = new THREE.Vector3();
+            if (this.planeType === 'XY') {
+              pt1.set(p1.x + Math.cos(a1)*radius, p1.y + Math.sin(a1)*radius, 0);
+              pt2.set(p1.x + Math.cos(a2)*radius, p1.y + Math.sin(a2)*radius, 0);
+            } else if (this.planeType === 'XZ') {
+              pt1.set(p1.x + Math.cos(a1)*radius, 0, p1.z + Math.sin(a1)*radius);
+              pt2.set(p1.x + Math.cos(a2)*radius, 0, p1.z + Math.sin(a2)*radius);
+            } else {
+              pt1.set(0, p1.y + Math.cos(a1)*radius, p1.z + Math.sin(a1)*radius);
+              pt2.set(0, p1.y + Math.cos(a2)*radius, p1.z + Math.sin(a2)*radius);
+            }
+            this.segments.push({ type: 'line', p1: pt1, p2: pt2 });
+            this._addSegmentVisual(pt1, pt2);
+          }
         }
         this._removePreview();
         this._firstPoint = null;
@@ -2475,6 +2542,19 @@ class SketchManager {
   }
 
   _rectCorners(p1, p2) {
+    if (this.planeType === 'custom') {
+      const rel1 = p1.clone().sub(this.planeOrigin);
+      const rel2 = p2.clone().sub(this.planeOrigin);
+      const u1 = rel1.dot(this.planeU), v1 = rel1.dot(this.planeV);
+      const u2 = rel2.dot(this.planeU), v2 = rel2.dot(this.planeV);
+      const o = this.planeOrigin, U = this.planeU, V = this.planeV;
+      return [
+        o.clone().addScaledVector(U, u1).addScaledVector(V, v1),
+        o.clone().addScaledVector(U, u2).addScaledVector(V, v1),
+        o.clone().addScaledVector(U, u2).addScaledVector(V, v2),
+        o.clone().addScaledVector(U, u1).addScaledVector(V, v2)
+      ];
+    }
     if (this.planeType === 'XY') {
       return [
         new THREE.Vector3(p1.x, p1.y, 0),
@@ -2503,7 +2583,48 @@ class SketchManager {
     if (!this._firstPoint) return;
     const point = this.getPlaneIntersection(event, camera, canvas);
     if (!point) return;
-    this._updatePreview(this._firstPoint, point);
+    if (this.currentTool === 'rect') {
+      this._updateRectPreview(this._firstPoint, point);
+    } else if (this.currentTool === 'circle') {
+      this._updateCirclePreview(this._firstPoint, point);
+    } else {
+      this._updatePreview(this._firstPoint, point);
+    }
+  }
+
+  _updateRectPreview(p1, p2) {
+    this._removePreview();
+    const corners = this._rectCorners(p1, p2);
+    const pts = [...corners, corners[0]];
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    const mat = new THREE.LineBasicMaterial({ color: 0xffaa00, linewidth: 1.5 });
+    this._previewLine = new THREE.Line(geo, mat);
+    this._sketchGroup.add(this._previewLine);
+  }
+
+  _updateCirclePreview(center, edgePt) {
+    this._removePreview();
+    const radius = center.distanceTo(edgePt);
+    const segs = 64;
+    const pts = [];
+    for (let i = 0; i <= segs; i++) {
+      const a = (i / segs) * Math.PI * 2;
+      if (this.planeType === 'custom') {
+        pts.push(center.clone()
+          .addScaledVector(this.planeU, Math.cos(a) * radius)
+          .addScaledVector(this.planeV, Math.sin(a) * radius));
+      } else if (this.planeType === 'XY') {
+        pts.push(new THREE.Vector3(center.x + Math.cos(a)*radius, center.y + Math.sin(a)*radius, center.z));
+      } else if (this.planeType === 'XZ') {
+        pts.push(new THREE.Vector3(center.x + Math.cos(a)*radius, center.y, center.z + Math.sin(a)*radius));
+      } else {
+        pts.push(new THREE.Vector3(center.x, center.y + Math.cos(a)*radius, center.z + Math.sin(a)*radius));
+      }
+    }
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    const mat = new THREE.LineBasicMaterial({ color: 0xffaa00, linewidth: 1.5 });
+    this._previewLine = new THREE.Line(geo, mat);
+    this._sketchGroup.add(this._previewLine);
   }
 
   _addSegmentVisual(p1, p2) {
@@ -2532,6 +2653,12 @@ class SketchManager {
 
   finishSketch() {
     const data = { segments: this.segments.slice(), planeType: this.planeType };
+    if (this.planeType === 'custom') {
+      data.planeOrigin = this.planeOrigin.clone();
+      data.planeNormal = this.planeNormal.clone();
+      data.planeU = this.planeU.clone();
+      data.planeV = this.planeV.clone();
+    }
     this.cancelSketch();
     return data;
   }
@@ -2581,7 +2708,16 @@ class ExtrudeEngine {
     mesh.castShadow = true;
     mesh.receiveShadow = true;
 
-    if (sketchData.planeType === 'XZ') {
+    if (sketchData.planeType === 'custom') {
+      const { planeOrigin, planeU, planeV, planeNormal } = sketchData;
+      const m4 = new THREE.Matrix4().makeBasis(
+        planeU.clone().normalize(),
+        planeV.clone().normalize(),
+        planeNormal.clone().normalize()
+      );
+      mesh.quaternion.setFromRotationMatrix(m4);
+      mesh.position.copy(planeOrigin);
+    } else if (sketchData.planeType === 'XZ') {
       mesh.rotation.x = -Math.PI / 2;
     } else if (sketchData.planeType === 'YZ') {
       mesh.rotation.y = Math.PI / 2;
@@ -2597,10 +2733,21 @@ class ExtrudeEngine {
     const shape = new THREE.Shape();
     const planeType = sketchData.planeType || 'XY';
 
+    let planeOrigin, planeU, planeV;
+    if (planeType === 'custom') {
+      planeOrigin = sketchData.planeOrigin || new THREE.Vector3();
+      planeU = sketchData.planeU || new THREE.Vector3(1, 0, 0);
+      planeV = sketchData.planeV || new THREE.Vector3(0, 1, 0);
+    }
+
     const toXY = (p) => {
       if (planeType === 'XY') return [p.x, p.y];
       if (planeType === 'XZ') return [p.x, p.z];
       if (planeType === 'YZ') return [p.y, p.z];
+      if (planeType === 'custom') {
+        const rel = new THREE.Vector3(p.x, p.y, p.z).sub(planeOrigin);
+        return [rel.dot(planeU), rel.dot(planeV)];
+      }
       return [p.x, p.y];
     };
 
@@ -3202,6 +3349,11 @@ class RibbonUI {
       boxDropBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         const open = boxDropMenu.style.display !== 'none';
+        if (!open) {
+          const r = boxDropBtn.getBoundingClientRect();
+          boxDropMenu.style.left = r.left + 'px';
+          boxDropMenu.style.top = (r.bottom + 3) + 'px';
+        }
         boxDropMenu.style.display = open ? 'none' : 'block';
       });
       boxDropMenu.querySelectorAll('.primitive-dropdown-item').forEach(item => {
@@ -3227,6 +3379,7 @@ class RibbonUI {
       const plane = document.getElementById('sketch-plane-select').value;
       this.app.startSketch(plane);
     });
+    this._bind('btn-sketch-on-surface', () => this.app.startSketchOnSurface());
     this._bind('btn-finish-sketch', () => this.app.finishSketch());
     this._bind('btn-sketch-line', () => this.app.setSketchTool('line'));
     this._bind('btn-sketch-rect', () => this.app.setSketchTool('rect'));
@@ -3311,12 +3464,14 @@ class RibbonUI {
 
   setSketchMode(active) {
     const startBtn = document.getElementById('btn-start-sketch');
+    const surfBtn = document.getElementById('btn-sketch-on-surface');
     const finishBtn = document.getElementById('btn-finish-sketch');
     const lineBtn = document.getElementById('btn-sketch-line');
     const rectBtn = document.getElementById('btn-sketch-rect');
     const circBtn = document.getElementById('btn-sketch-circle');
 
     if (startBtn) startBtn.disabled = active;
+    if (surfBtn) surfBtn.disabled = active;
     if (finishBtn) finishBtn.disabled = !active;
     if (lineBtn) lineBtn.disabled = !active;
     if (rectBtn) rectBtn.disabled = !active;
@@ -3811,6 +3966,8 @@ class App {
     this._copyBuffer = [];
     this.boxBuildMode = false;
     this.boxBuilder = null;
+    this.surfacePickMode = false;
+    this._lastSketchRegionId = null;
   }
 
   init() {
@@ -4003,6 +4160,73 @@ class App {
     this.boxBuilder.cancel();
   }
 
+  startSketchOnSurface() {
+    if (this.sketchMode) this.cancelSketch();
+    if (this.boxBuildMode) this.cancelBoxBuilder();
+    if (this.surfacePickMode) {
+      // Toggle off
+      this.surfacePickMode = false;
+      document.getElementById('main-canvas').style.cursor = '';
+      this.statusBar.setMode('Просмотр');
+      this.statusBar.setMessage('', 0);
+      return;
+    }
+    this.surfacePickMode = true;
+    document.getElementById('main-canvas').style.cursor = 'crosshair';
+    this.statusBar.setMode('Выбор поверхности');
+    this.statusBar.setMessage('Кликните на поверхность объекта для создания эскиза (ESC — отмена)', 0);
+  }
+
+  _pickSurface(event) {
+    const canvas = document.getElementById('main-canvas');
+    const rect = canvas.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(new THREE.Vector2(x, y), this.camera);
+
+    const meshes = this.sceneManager.getAllObjects()
+      .filter(o => o.mesh && o.mesh.visible && o.kind !== 'sketch-region')
+      .map(o => o.mesh);
+
+    const intersects = raycaster.intersectObjects(meshes, false);
+    if (intersects.length > 0) {
+      const hit = intersects[0];
+      if (!hit.face) { this.statusBar.setMessage('Нажмите на поверхность объекта', 2000); return; }
+      const faceNormal = hit.face.normal.clone();
+      faceNormal.transformDirection(hit.object.matrixWorld);
+      const origin = hit.point.clone();
+
+      // Build coordinate frame from normal
+      const worldUp = new THREE.Vector3(0, 1, 0);
+      let right;
+      if (Math.abs(faceNormal.dot(worldUp)) > 0.99) {
+        right = new THREE.Vector3().crossVectors(new THREE.Vector3(1, 0, 0), faceNormal);
+        if (right.lengthSq() < 0.001) right.crossVectors(new THREE.Vector3(0, 0, 1), faceNormal);
+        right.normalize();
+      } else {
+        right = new THREE.Vector3().crossVectors(worldUp, faceNormal).normalize();
+      }
+      const up = new THREE.Vector3().crossVectors(faceNormal, right).normalize();
+
+      this.surfacePickMode = false;
+      canvas.style.cursor = '';
+      this.sketchMode = true;
+      this.sketchManager.startSketchOnSurface(origin, faceNormal, right, up);
+      this.ribbonUI.setSketchMode(true);
+      this.ribbonUI.activateTab('sketch');
+      this.setSketchTool('line');
+      this.statusBar.setMode('Эскиз на поверхности');
+      this.statusBar.setMessage('Эскиз на поверхности начат. Рисуйте контур. Tab или ✅ — завершить.', 3000);
+      this.transformTool.detach();
+      this.selectionManager.clearSelection();
+      this.propertiesPanel.clear();
+      this.modelTreeUI.setSelected([]);
+    } else {
+      this.statusBar.setMessage('Нажмите на поверхность объекта', 2000);
+    }
+  }
+
   startSketch(planeType) {
     if (this.sketchMode) this.cancelSketch();
     this.sketchMode = true;
@@ -4037,10 +4261,52 @@ class App {
 
     if (sketchData && sketchData.segments && sketchData.segments.length > 0) {
       this._lastSketchData = sketchData;
-      this.statusBar.setMessage('Эскиз завершён. Используйте "Выдавить" или "Вращать".', 4000);
+      // Create pickable translucent sketch-region
+      const regionMesh = this._createSketchRegion(sketchData);
+      if (regionMesh) {
+        const rid = this.sceneManager.nextId++;
+        const regionObj = {
+          id: rid, name: 'Эскиз ' + rid, type: 'sketch-region', kind: 'sketch-region',
+          mesh: regionMesh, sketchData,
+          visible: true, locked: false, children: [], parent: null, materialParams: {}
+        };
+        this.sceneManager.addObject(regionObj);
+        this._lastSketchRegionId = rid;
+        this._refreshUI();
+      }
+      this.statusBar.setMessage('Эскиз завершён. Кликните область и нажмите "Выдавить".', 4000);
     } else {
       this._lastSketchData = null;
       this.statusBar.setMessage('Эскиз пустой — отменён.', 2000);
+    }
+  }
+
+  _createSketchRegion(sketchData) {
+    try {
+      const shape = ExtrudeEngine._buildShape(sketchData);
+      if (!shape) return null;
+      const geo = new THREE.ShapeGeometry(shape);
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0x4499ff, transparent: true, opacity: 0.28,
+        side: THREE.DoubleSide, depthWrite: false
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      if (sketchData.planeType === 'custom') {
+        const { planeOrigin, planeU, planeV, planeNormal } = sketchData;
+        const m4 = new THREE.Matrix4().makeBasis(
+          planeU.clone().normalize(), planeV.clone().normalize(), planeNormal.clone().normalize()
+        );
+        mesh.quaternion.setFromRotationMatrix(m4);
+        mesh.position.copy(planeOrigin);
+      } else if (sketchData.planeType === 'XZ') {
+        mesh.rotation.x = -Math.PI / 2;
+      } else if (sketchData.planeType === 'YZ') {
+        mesh.rotation.y = Math.PI / 2;
+      }
+      return mesh;
+    } catch (e) {
+      console.warn('Sketch region build error:', e);
+      return null;
     }
   }
 
@@ -4053,8 +4319,20 @@ class App {
   }
 
   showExtrudeDialog() {
-    if (!this._lastSketchData || this._lastSketchData.segments.length === 0) {
-      this.statusBar.setMessage('Сначала создайте и завершите эскиз.', 3000);
+    // Prefer selected sketch-region; fall back to _lastSketchData
+    const sel = this.selectionManager.getSelected();
+    let sketchData = null;
+    let regionId = null;
+    if (sel.length === 1) {
+      const obj = this.sceneManager.getObject(sel[0]);
+      if (obj && obj.kind === 'sketch-region' && obj.sketchData) {
+        sketchData = obj.sketchData;
+        regionId = obj.id;
+      }
+    }
+    if (!sketchData) sketchData = this._lastSketchData;
+    if (!sketchData || sketchData.segments.length === 0) {
+      this.statusBar.setMessage('Создайте эскиз, завершите его и кликните область.', 3000);
       return;
     }
     showModal('Выдавливание', [
@@ -4062,14 +4340,25 @@ class App {
       { id: 'bevel', label: 'Скругление:', type: 'checkbox', value: false },
       { id: 'bevelThickness', label: 'Толщина скругления:', type: 'number', value: 0.1, step: 0.01, min: 0 }
     ], (vals) => {
-      this.extrudeSketch(vals.depth, vals.bevel, vals.bevelThickness);
+      this.extrudeSketch(vals.depth, vals.bevel, vals.bevelThickness, sketchData, regionId);
     });
   }
 
-  extrudeSketch(depth = 2, bevelEnabled = false, bevelThickness = 0.1) {
-    if (!this._lastSketchData) return;
-    const mesh = ExtrudeEngine.extrude(this._lastSketchData, depth, bevelEnabled, bevelThickness);
+  extrudeSketch(depth = 2, bevelEnabled = false, bevelThickness = 0.1, sketchData = null, regionId = null) {
+    const data = sketchData || this._lastSketchData;
+    if (!data) return;
+    const mesh = ExtrudeEngine.extrude(data, depth, bevelEnabled, bevelThickness);
     if (!mesh) { this.statusBar.setMessage('Ошибка выдавливания. Проверьте эскиз.', 3000); return; }
+
+    // Remove the sketch-region
+    if (regionId) {
+      this.sceneManager.removeObject(regionId);
+      if (this._lastSketchRegionId === regionId) this._lastSketchRegionId = null;
+    } else if (this._lastSketchRegionId) {
+      this.sceneManager.removeObject(this._lastSketchRegionId);
+      this._lastSketchRegionId = null;
+    }
+    if (data === this._lastSketchData) this._lastSketchData = null;
 
     const id = this.sceneManager.nextId++;
     const name = 'Выдавливание ' + id;
@@ -4080,7 +4369,6 @@ class App {
       visible: true, locked: false, children: [], parent: null
     };
     this.sceneManager.addObject(sceneObj);
-    this._lastSketchData = null;
     this._refreshUI();
     this.historyManager.push(this.sceneManager.serialize());
     this.statusBar.setMessage('Выдавливание создано: ' + name, 2000);
@@ -4523,6 +4811,11 @@ class App {
   }
 
   onClick(event) {
+    if (this.surfacePickMode) {
+      this._pickSurface(event);
+      return;
+    }
+
     if (this.boxBuildMode) {
       this.boxBuilder.onClick(event);
       return;
@@ -4663,12 +4956,19 @@ class App {
         }
         break;
       case 'escape':
-        this.selectionManager.clearSelection();
-        this.transformTool.detach();
-        this.propertiesPanel.clear();
-        this.modelTreeUI.setSelected([]);
-        this.statusBar.setSelected(0);
-        this.statusBar.setMode('Просмотр');
+        if (this.surfacePickMode) {
+          this.surfacePickMode = false;
+          document.getElementById('main-canvas').style.cursor = '';
+          this.statusBar.setMode('Просмотр');
+          this.statusBar.setMessage('Выбор поверхности отменён', 2000);
+        } else {
+          this.selectionManager.clearSelection();
+          this.transformTool.detach();
+          this.propertiesPanel.clear();
+          this.modelTreeUI.setSelected([]);
+          this.statusBar.setSelected(0);
+          this.statusBar.setMode('Просмотр');
+        }
         break;
     }
   }
@@ -4788,12 +5088,17 @@ class App {
     }
     if (this.sketchMode) this.cancelSketch();
     if (this.boxBuildMode) this.cancelBoxBuilder();
+    if (this.surfacePickMode) {
+      this.surfacePickMode = false;
+      document.getElementById('main-canvas').style.cursor = '';
+    }
     this.selectionManager.clearSelection();
     this.transformTool.detach();
     this.sceneManager.clear();
     this.operationTree.clear();
     this.historyManager.clear();
     this._lastSketchData = null;
+    this._lastSketchRegionId = null;
     this._refreshUI();
     this.propertiesPanel.clear();
     this.historyManager.push(this.sceneManager.serialize());
@@ -4827,6 +5132,10 @@ class App {
           const data = JSON.parse(ev.target.result);
           if (this.sketchMode) this.cancelSketch();
           if (this.boxBuildMode) this.cancelBoxBuilder();
+          if (this.surfacePickMode) {
+            this.surfacePickMode = false;
+            document.getElementById('main-canvas').style.cursor = '';
+          }
           this.selectionManager.clearSelection();
           this.transformTool.detach();
           this.sceneManager.deserialize(data);
