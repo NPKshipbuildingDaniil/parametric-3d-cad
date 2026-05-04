@@ -1574,6 +1574,8 @@ class TransformControls extends THREE.Object3D {
 
   setSpace(space) { this._space = space; }
 
+  setSize(size) { this._size = size; this.scale.setScalar(size); }
+
   _updateGizmoPosition() {
     if (!this.object) return;
     const worldPos = new THREE.Vector3();
