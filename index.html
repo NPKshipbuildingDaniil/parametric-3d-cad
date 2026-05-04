@@ -767,6 +767,81 @@ input[type="number"].props-input::-webkit-inner-spin-button,
 input[type="number"].props-input::-webkit-outer-spin-button {
   opacity: 0.5;
 }
+
+/* ========== SPLIT BUTTON & PRIMITIVE DROPDOWN ========== */
+.btn-split {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.btn-split .btn-split-main {
+  border-radius: 4px 0 0 4px;
+  flex: 1;
+}
+
+.btn-split .btn-split-arrow {
+  border-radius: 0 4px 4px 0;
+  min-width: 16px !important;
+  padding: 4px 3px !important;
+  font-size: 11px !important;
+  border-left: 1px solid rgba(0,0,0,0.12);
+}
+
+.primitive-dropdown {
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 0;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.18);
+  z-index: 600;
+  min-width: 168px;
+  overflow: hidden;
+}
+
+.primitive-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text);
+  transition: background 0.1s;
+  white-space: nowrap;
+}
+
+.primitive-dropdown-item:hover {
+  background: var(--selected-bg);
+  color: var(--accent);
+}
+
+.primitive-dropdown-item .item-icon {
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+/* ========== BOX BUILDER INDICATOR ========== */
+#boxbuilder-indicator {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(16, 124, 16, 0.88);
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  display: none;
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(40,200,40,0.5);
+  pointer-events: none;
+}
+
+#boxbuilder-indicator.active {
+  display: block;
+}
 </style>
 </head>
 <body>
@@ -833,9 +908,16 @@ input[type="number"].props-input::-webkit-outer-spin-button {
       <div class="tab-content" id="tab-primitives">
         <div class="ribbon-group">
           <div class="ribbon-group-buttons">
-            <button class="btn btn-large" id="btn-add-box" data-tooltip="Добавить куб">
-              <span class="btn-icon">🟦</span>Куб
-            </button>
+            <div class="btn-split">
+              <button class="btn btn-large btn-split-main" id="btn-add-box" data-tooltip="Добавить куб (стандартный)">
+                <span class="btn-icon">🟦</span>Куб
+              </button><button class="btn btn-large btn-split-arrow" id="btn-add-box-dropdown" data-tooltip="Способы построения куба">▾</button>
+              <div class="primitive-dropdown" id="dropdown-box" style="display:none">
+                <div class="primitive-dropdown-item" data-method="standard"><span class="item-icon">🟦</span>Стандартный</div>
+                <div class="primitive-dropdown-item" data-method="diagonal"><span class="item-icon">📐</span>По диагонали</div>
+                <div class="primitive-dropdown-item" data-method="sides"><span class="item-icon">📏</span>По сторонам</div>
+              </div>
+            </div>
             <button class="btn btn-large" id="btn-add-sphere" data-tooltip="Добавить сферу">
               <span class="btn-icon">🔵</span>Сфера
             </button>
@@ -1104,6 +1186,7 @@ input[type="number"].props-input::-webkit-outer-spin-button {
         <button class="view-btn" id="vbtn-iso">Изо</button>
       </div>
       <div id="sketch-indicator">✏️ Режим эскиза</div>
+      <div id="boxbuilder-indicator">🟦 Построение куба</div>
       <div id="transform-indicator">G - Перемещение | R - Поворот | S - Масштаб</div>
     </div>
 
@@ -3112,6 +3195,33 @@ class RibbonUI {
     this._bind('btn-add-hemisphere', () => this.app.addPrimitive('hemisphere'));
     this._bind('btn-add-pyramid', () => this.app.addPrimitive('pyramid'));
 
+    // Box split-button dropdown
+    const boxDropBtn = document.getElementById('btn-add-box-dropdown');
+    const boxDropMenu = document.getElementById('dropdown-box');
+    if (boxDropBtn && boxDropMenu) {
+      boxDropBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const open = boxDropMenu.style.display !== 'none';
+        boxDropMenu.style.display = open ? 'none' : 'block';
+      });
+      boxDropMenu.querySelectorAll('.primitive-dropdown-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+          e.stopPropagation();
+          boxDropMenu.style.display = 'none';
+          const method = item.dataset.method;
+          if (method === 'standard') {
+            this.app.addPrimitive('box');
+          } else {
+            this.app.startBoxBuilder(method);
+            this.activateTab('primitives');
+          }
+        });
+      });
+      document.addEventListener('click', () => {
+        boxDropMenu.style.display = 'none';
+      });
+    }
+
     // Sketch tab
     this._bind('btn-start-sketch', () => {
       const plane = document.getElementById('sketch-plane-select').value;
@@ -3289,6 +3399,386 @@ function showModal(title, fields, onOk) {
 }
 
 // ============================================================
+// BOX BUILDER  — interactive box construction tool
+// ============================================================
+class BoxBuilder {
+  constructor(app) {
+    this.app = app;
+    this.active = false;
+    this.method = 'diagonal'; // 'diagonal' | 'sides'
+    // States:
+    //   diagonal: 'p1' → 'p2' → 'waiting_enter' → 'height' → done
+    //   sides:    'p1' → 'p2' → 'p3' → 'height' → done
+    this.state = 'idle';
+    this.p1 = null;
+    this.p2 = null;
+    this.p3 = null;
+    this.height = 1;
+    this._previewGroup = new THREE.Group();
+    this._previewGroup.renderOrder = 990;
+    this.app.sceneManager.scene.add(this._previewGroup);
+  }
+
+  // ---- public API ----
+
+  start(method) {
+    this.cancel();
+    this.active = true;
+    this.method = method;
+    this.state = 'p1';
+    this.p1 = null;
+    this.p2 = null;
+    this.p3 = null;
+    this.height = 1;
+    this.app.boxBuildMode = true;
+
+    document.getElementById('boxbuilder-indicator').classList.add('active');
+
+    const msg = method === 'diagonal'
+      ? 'Кликните первую точку диагонали основания'
+      : 'Кликните начало первой стороны основания';
+    this.app.statusBar.setMode('Построение куба');
+    this.app.statusBar.setMessage(msg, 0);
+  }
+
+  cancel() {
+    this.active = false;
+    this.state = 'idle';
+    this._clearPreview();
+    this.app.boxBuildMode = false;
+    document.getElementById('boxbuilder-indicator').classList.remove('active');
+  }
+
+  onClick(event) {
+    if (!this.active) return;
+    const groundPt = this._getGroundPoint(event);
+    if (!groundPt) return;
+
+    if (this.state === 'p1') {
+      this.p1 = groundPt;
+      this.state = 'p2';
+      const msg = this.method === 'diagonal'
+        ? 'Кликните вторую точку диагонали основания'
+        : 'Кликните конец первой стороны';
+      this.app.statusBar.setMessage(msg, 0);
+
+    } else if (this.state === 'p2') {
+      this.p2 = groundPt;
+      if (this.method === 'diagonal') {
+        this.state = 'waiting_enter';
+        this._showBaseOutline();
+        this.app.statusBar.setMessage('Основание зафиксировано. Нажмите Enter для задания высоты (ESC — отмена)', 0);
+      } else {
+        this.state = 'p3';
+        this.app.statusBar.setMessage('Укажите ширину: кликните третью точку', 0);
+      }
+
+    } else if (this.state === 'p3') {
+      this.p3 = groundPt;
+      this.state = 'height';
+      this.app.statusBar.setMessage('Двигайте мышь вверх/вниз для высоты, кликните для завершения', 0);
+
+    } else if (this.state === 'height') {
+      this.height = this._getHeightFromEvent(event);
+      this._finalizeBox();
+    }
+  }
+
+  onMouseMove(event) {
+    if (!this.active) return;
+
+    if (this.state === 'p2') {
+      const pt = this._getGroundPoint(event);
+      if (pt) this._previewBase(pt);
+
+    } else if (this.state === 'p3') {
+      const pt = this._getGroundPoint(event);
+      if (pt) this._previewRectSides(pt);
+
+    } else if (this.state === 'height') {
+      const h = this._getHeightFromEvent(event);
+      this.height = h;
+      this._previewBox(h);
+    }
+  }
+
+  onKeyDown(event) {
+    if (!this.active) return;
+    if (event.key === 'Escape') {
+      this.cancel();
+      this.app.statusBar.setMessage('Построение куба отменено', 2000);
+      this.app.statusBar.setMode('Просмотр');
+    } else if (event.key === 'Enter') {
+      if (this.state === 'waiting_enter') {
+        this.state = 'height';
+        this.app.statusBar.setMessage('Двигайте мышь вверх/вниз для высоты, кликните для завершения', 0);
+      } else if (this.state === 'height') {
+        this._finalizeBox();
+      }
+    }
+  }
+
+  // ---- private helpers ----
+
+  _snap(v) {
+    const s = 0.5;
+    return new THREE.Vector3(
+      Math.round(v.x / s) * s,
+      0,
+      Math.round(v.z / s) * s
+    );
+  }
+
+  _getGroundPoint(event) {
+    const canvas = document.getElementById('main-canvas');
+    const rect = canvas.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(new THREE.Vector2(x, y), this.app.camera);
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const pt = new THREE.Vector3();
+    const hit = ray.ray.intersectPlane(plane, pt);
+    return hit ? this._snap(pt) : null;
+  }
+
+  _getHeightFromEvent(event) {
+    const canvas = document.getElementById('main-canvas');
+    const rect = canvas.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(new THREE.Vector2(x, y), this.app.camera);
+
+    // Build a vertical plane facing the camera (projected onto XZ)
+    const camDir = new THREE.Vector3();
+    this.app.camera.getWorldDirection(camDir);
+    camDir.y = 0;
+    if (camDir.lengthSq() < 0.0001) camDir.set(1, 0, 0);
+    camDir.normalize();
+
+    const baseCenter = this._computeBaseCenter();
+    const heightPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(camDir, baseCenter);
+    const pt = new THREE.Vector3();
+    const hit = ray.ray.intersectPlane(heightPlane, pt);
+    if (!hit) return this.height;
+    const s = 0.25;
+    return Math.max(0.01, Math.round(pt.y / s) * s);
+  }
+
+  _computeBaseCenter() {
+    if (this.method === 'diagonal' && this.p1 && this.p2) {
+      return new THREE.Vector3(
+        (this.p1.x + this.p2.x) / 2, 0, (this.p1.z + this.p2.z) / 2
+      );
+    }
+    if (this.method === 'sides' && this.p1 && this.p2) {
+      const dir = this.p2.clone().sub(this.p1).normalize();
+      const perp = new THREE.Vector3(-dir.z, 0, dir.x);
+      const w = this.p3
+        ? this.p3.clone().sub(this.p1).dot(perp)
+        : 1;
+      return this.p1.clone()
+        .addScaledVector(dir, this.p2.distanceTo(this.p1) / 2)
+        .addScaledVector(perp, w / 2);
+    }
+    return new THREE.Vector3();
+  }
+
+  _clearPreview() {
+    const dispose = (obj) => {
+      obj.children.slice().forEach(c => dispose(c));
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) {
+        if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+        else obj.material.dispose();
+      }
+    };
+    while (this._previewGroup.children.length > 0) {
+      const child = this._previewGroup.children[0];
+      dispose(child);
+      this._previewGroup.remove(child);
+    }
+  }
+
+  _addLine(points, color) {
+    const geo = new THREE.BufferGeometry().setFromPoints(points);
+    const mat = new THREE.LineBasicMaterial({ color, depthTest: false });
+    const line = new THREE.Line(geo, mat);
+    line.renderOrder = 990;
+    this._previewGroup.add(line);
+  }
+
+  // Show first-side line from p1 to cursor (diagonal or sides mode p2 state)
+  _previewBase(cursorPt) {
+    this._clearPreview();
+    if (!this.p1) return;
+
+    const y = 0.01;
+    if (this.method === 'diagonal') {
+      const p1 = this.p1, p2 = cursorPt;
+      // Rectangle outline
+      this._addLine([
+        new THREE.Vector3(p1.x, y, p1.z),
+        new THREE.Vector3(p2.x, y, p1.z),
+        new THREE.Vector3(p2.x, y, p2.z),
+        new THREE.Vector3(p1.x, y, p2.z),
+        new THREE.Vector3(p1.x, y, p1.z)
+      ], 0xffaa00);
+      // Diagonal dashed
+      this._addLine([
+        new THREE.Vector3(p1.x, y + 0.01, p1.z),
+        new THREE.Vector3(p2.x, y + 0.01, p2.z)
+      ], 0xff6600);
+    } else {
+      // First side line
+      this._addLine([
+        new THREE.Vector3(this.p1.x, y, this.p1.z),
+        new THREE.Vector3(cursorPt.x, y, cursorPt.z)
+      ], 0xffaa00);
+    }
+  }
+
+  // Show second side (perpendicular), p1+p2 fixed, cursor sets width
+  _previewRectSides(cursorPt) {
+    this._clearPreview();
+    if (!this.p1 || !this.p2) return;
+
+    const dir = this.p2.clone().sub(this.p1);
+    const dirN = dir.clone().normalize();
+    const perp = new THREE.Vector3(-dirN.z, 0, dirN.x);
+    const w = cursorPt.clone().sub(this.p1).dot(perp);
+
+    const y = 0.01;
+    const c1 = new THREE.Vector3(this.p1.x, y, this.p1.z);
+    const c2 = new THREE.Vector3(this.p2.x, y, this.p2.z);
+    const c3 = c2.clone().addScaledVector(perp, w);
+    c3.y = y;
+    const c4 = c1.clone().addScaledVector(perp, w);
+    c4.y = y;
+
+    this._addLine([c1, c2, c3, c4, c1], 0xffaa00);
+  }
+
+  // Show base outline only (for diagonal waiting_enter state)
+  _showBaseOutline() {
+    this._clearPreview();
+    if (!this.p1 || !this.p2) return;
+    const y = 0.01;
+    const p1 = this.p1, p2 = this.p2;
+    this._addLine([
+      new THREE.Vector3(p1.x, y, p1.z),
+      new THREE.Vector3(p2.x, y, p1.z),
+      new THREE.Vector3(p2.x, y, p2.z),
+      new THREE.Vector3(p1.x, y, p2.z),
+      new THREE.Vector3(p1.x, y, p1.z)
+    ], 0x00cc66);
+  }
+
+  // Show full box preview with given height
+  _previewBox(height) {
+    this._clearPreview();
+
+    let geo, position, rotY = 0;
+
+    if (this.method === 'diagonal') {
+      const w = Math.abs(this.p2.x - this.p1.x) || 0.01;
+      const d = Math.abs(this.p2.z - this.p1.z) || 0.01;
+      geo = new THREE.BoxGeometry(w, height, d);
+      position = new THREE.Vector3(
+        (this.p1.x + this.p2.x) / 2,
+        height / 2,
+        (this.p1.z + this.p2.z) / 2
+      );
+    } else {
+      const dir = this.p2.clone().sub(this.p1);
+      const len = dir.length() || 0.01;
+      const dirN = dir.clone().normalize();
+      const perp = new THREE.Vector3(-dirN.z, 0, dirN.x);
+      const w = this.p3.clone().sub(this.p1).dot(perp);
+      const absW = Math.abs(w) || 0.01;
+      const center = this.p1.clone()
+        .addScaledVector(dirN, len / 2)
+        .addScaledVector(perp, w / 2);
+      geo = new THREE.BoxGeometry(len, height, absW);
+      rotY = -Math.atan2(dirN.z, dirN.x);
+      position = new THREE.Vector3(center.x, height / 2, center.z);
+    }
+
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x5588cc, transparent: true, opacity: 0.35, depthWrite: false
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.y = rotY;
+    mesh.position.copy(position);
+    mesh.renderOrder = 991;
+
+    const edges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(geo),
+      new THREE.LineBasicMaterial({ color: 0x0055cc, depthTest: false })
+    );
+    edges.renderOrder = 992;
+    mesh.add(edges);
+
+    this._previewGroup.add(mesh);
+  }
+
+  _finalizeBox() {
+    let mesh, params;
+
+    if (this.method === 'diagonal') {
+      const w = Math.abs(this.p2.x - this.p1.x) || 0.1;
+      const d = Math.abs(this.p2.z - this.p1.z) || 0.1;
+      params = { width: w, height: this.height, depth: d };
+      mesh = PrimitiveFactory.create('box', params);
+      mesh.position.set(
+        (this.p1.x + this.p2.x) / 2,
+        this.height / 2,
+        (this.p1.z + this.p2.z) / 2
+      );
+    } else {
+      const dir = this.p2.clone().sub(this.p1);
+      const len = dir.length() || 0.1;
+      const dirN = dir.clone().normalize();
+      const perp = new THREE.Vector3(-dirN.z, 0, dirN.x);
+      const w = this.p3.clone().sub(this.p1).dot(perp);
+      const absW = Math.abs(w) || 0.1;
+      const center = this.p1.clone()
+        .addScaledVector(dirN, len / 2)
+        .addScaledVector(perp, w / 2);
+      params = { width: len, height: this.height, depth: absW };
+      mesh = PrimitiveFactory.create('box', params);
+      mesh.rotation.y = -Math.atan2(dirN.z, dirN.x);
+      mesh.position.set(center.x, this.height / 2, center.z);
+    }
+
+    const app = this.app;
+    const id = app.sceneManager.nextId++;
+    const name = PrimitiveFactory.getTypeName('box') + ' ' + id;
+    const sceneObj = {
+      id, name, type: 'box', kind: 'primitive',
+      mesh, params,
+      materialParams: MaterialLibrary.getParams(mesh),
+      visible: true, locked: false, children: [], parent: null
+    };
+
+    app.sceneManager.addObject(sceneObj);
+    app.operationTree.add({ type: 'addPrimitive', params: { type: 'box', params }, objectId: id });
+    this.cancel();
+    app._refreshUI();
+    app.historyManager.push(app.sceneManager.serialize());
+    app.selectionManager.clearSelection();
+    app.selectionManager.select(id);
+    app.transformTool.attach(mesh);
+    app.propertiesPanel.update(sceneObj);
+    app.modelTreeUI.setSelected([id]);
+    app.statusBar.setSelected(1);
+    app.statusBar.setMode('Перемещение');
+    app.statusBar.setMessage(`Добавлен: ${name}`, 2000);
+  }
+}
+
+// ============================================================
 // MAIN APP CLASS
 // ============================================================
 class App {
@@ -3319,6 +3809,8 @@ class App {
     this._lastSketchData = null;
     this._transformMode = 'translate';
     this._copyBuffer = [];
+    this.boxBuildMode = false;
+    this.boxBuilder = null;
   }
 
   init() {
@@ -3368,6 +3860,7 @@ class App {
     this.sketchManager = new SketchManager(this.sceneManager.scene);
     this.exportManager = new ExportManager();
     this.statusBar = new StatusBar();
+    this.boxBuilder = new BoxBuilder(this);
 
     // Transform tool
     this.transformTool = new TransformTool(this.camera, this.renderer, this.cameraController.controls);
@@ -3493,6 +3986,21 @@ class App {
     this.statusBar.setMessage(`Добавлен: ${name}`, 2000);
 
     return sceneObj;
+  }
+
+  startBoxBuilder(method) {
+    if (this.boxBuildMode) this.cancelBoxBuilder();
+    if (this.sketchMode) this.cancelSketch();
+    this.transformTool.detach();
+    this.selectionManager.clearSelection();
+    this.propertiesPanel.clear();
+    this.modelTreeUI.setSelected([]);
+    this.statusBar.setSelected(0);
+    this.boxBuilder.start(method);
+  }
+
+  cancelBoxBuilder() {
+    this.boxBuilder.cancel();
   }
 
   startSketch(planeType) {
@@ -4015,6 +4523,11 @@ class App {
   }
 
   onClick(event) {
+    if (this.boxBuildMode) {
+      this.boxBuilder.onClick(event);
+      return;
+    }
+
     if (this.sketchMode) {
       this.sketchManager.onClick(event, this.camera, document.getElementById('main-canvas'));
       return;
@@ -4051,6 +4564,13 @@ class App {
   }
 
   onMouseMove(event) {
+    if (this.boxBuildMode) {
+      this.boxBuilder.onMouseMove(event);
+      const pt = this.boxBuilder._getGroundPoint(event);
+      if (pt) this.statusBar.setCoords(pt.x, pt.y, pt.z);
+      return;
+    }
+
     if (this.sketchMode) {
       this.sketchManager.onMouseMove(event, this.camera, document.getElementById('main-canvas'));
       const pt = this.sketchManager.getPlaneIntersection(event, this.camera, document.getElementById('main-canvas'));
@@ -4091,6 +4611,11 @@ class App {
     if (this.sketchMode) {
       if (key === 'escape') { this.cancelSketch(); }
       if (key === 'tab') { event.preventDefault(); this.finishSketch(); }
+      return;
+    }
+
+    if (this.boxBuildMode) {
+      this.boxBuilder.onKeyDown(event);
       return;
     }
 
@@ -4262,6 +4787,7 @@ class App {
       if (!confirm('Создать новую сцену? Несохранённые данные будут потеряны.')) return;
     }
     if (this.sketchMode) this.cancelSketch();
+    if (this.boxBuildMode) this.cancelBoxBuilder();
     this.selectionManager.clearSelection();
     this.transformTool.detach();
     this.sceneManager.clear();
@@ -4300,6 +4826,7 @@ class App {
         try {
           const data = JSON.parse(ev.target.result);
           if (this.sketchMode) this.cancelSketch();
+          if (this.boxBuildMode) this.cancelBoxBuilder();
           this.selectionManager.clearSelection();
           this.transformTool.detach();
           this.sceneManager.deserialize(data);
